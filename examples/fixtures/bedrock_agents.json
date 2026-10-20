@@ -1,0 +1,15 @@
+[
+  {
+    "agentSummaries": [
+      {
+        "agentId": "AGNTCLAIMS01",
+        "agentName": "claims-assistant",
+        "description": "SYNTHETIC: answers internal questions about claim handling policy",
+        "agentStatus": "PREPARED",
+        "latestAgentVersion": "5",
+        "guardrailConfiguration": { "identifier": "grl-claims0123" },
+        "updatedAt": { "__offset_days__": -20 }
+      }
+    ]
+  }
+]

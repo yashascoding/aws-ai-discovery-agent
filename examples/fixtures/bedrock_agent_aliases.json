@@ -1,0 +1,14 @@
+[
+  {
+    "agentAliasSummaries": [
+      {
+        "agentAliasId": "TSTALIASCD1",
+        "agentAliasName": "LIVE",
+        "agentAliasStatus": "PREPARED",
+        "description": "SYNTHETIC: production alias",
+        "createdAt": { "__offset_days__": -20 },
+        "updatedAt": { "__offset_days__": -20 }
+      }
+    ]
+  }
+]

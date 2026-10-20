@@ -1,0 +1,28 @@
+[
+  {
+    "inferenceProfileSummaries": [
+      {
+        "inferenceProfileId": "apac.anthropic.claude-haiku-4-5-v1:0",
+        "inferenceProfileName": "APAC Claude Haiku 4.5",
+        "inferenceProfileArn": "arn:aws:bedrock:ap-south-1:111122223333:inference-profile/apac.anthropic.claude-haiku-4-5-v1:0",
+        "description": "SYNTHETIC: AWS-managed cross-region routing profile (system-defined)",
+        "status": "ACTIVE",
+        "type": "SYSTEM_DEFINED",
+        "models": [ { "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0" } ],
+        "createdAt": { "__offset_days__": -50 },
+        "updatedAt": { "__offset_days__": -50 }
+      },
+      {
+        "inferenceProfileId": "synth-claims-summarizer-profile",
+        "inferenceProfileName": "claims-summarizer-profile",
+        "inferenceProfileArn": "arn:aws:bedrock:ap-south-1:111122223333:inference-profile/synth-claims-summarizer-profile",
+        "description": "SYNTHETIC: account-created inference profile for the claims summariser workload",
+        "status": "ACTIVE",
+        "type": "APPLICATION",
+        "models": [ { "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0" } ],
+        "createdAt": { "__offset_days__": -20 },
+        "updatedAt": { "__offset_days__": -2 }
+      }
+    ]
+  }
+]

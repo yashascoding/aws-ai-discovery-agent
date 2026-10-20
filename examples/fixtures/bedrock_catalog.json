@@ -1,0 +1,42 @@
+[
+  {
+    "modelSummaries": [
+      {
+        "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0",
+        "modelName": "Claude Haiku 4.5",
+        "providerName": "Anthropic",
+        "modelArn": "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "modelLifecycle": { "status": "ACTIVE" },
+        "inputModalities": ["TEXT", "IMAGE"],
+        "outputModalities": ["TEXT"],
+        "customizations": [],
+        "inferenceTypesSupported": ["ON_DEMAND", "PROVISIONED"],
+        "responseStreamingSupported": true
+      },
+      {
+        "modelId": "amazon.titan-embed-text-v2:0",
+        "modelName": "Titan Text Embeddings V2",
+        "providerName": "Amazon",
+        "modelArn": "arn:aws:bedrock:ap-south-1::foundation-model/amazon.titan-embed-text-v2:0",
+        "modelLifecycle": { "status": "ACTIVE" },
+        "inputModalities": ["TEXT"],
+        "outputModalities": ["TEXT"],
+        "customizations": [],
+        "inferenceTypesSupported": ["ON_DEMAND"],
+        "responseStreamingSupported": false
+      },
+      {
+        "modelId": "cohere.rerank-v3-5",
+        "modelName": "Cohere Rerank 3.5",
+        "providerName": "Cohere",
+        "modelArn": "arn:aws:bedrock:ap-south-1::foundation-model/cohere.rerank-v3-5",
+        "modelLifecycle": { "status": "ACTIVE" },
+        "inputModalities": ["TEXT"],
+        "outputModalities": ["TEXT"],
+        "customizations": [],
+        "inferenceTypesSupported": ["ON_DEMAND"],
+        "responseStreamingSupported": false
+      }
+    ]
+  }
+]

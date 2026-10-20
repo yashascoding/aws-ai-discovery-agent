@@ -1,0 +1,16 @@
+[
+  {
+    "guardrails": [
+      {
+        "id": "grl-claims0123",
+        "arn": "arn:aws:bedrock:ap-south-1:111122223333:guardrail/grl-claims0123",
+        "name": "claims-pii-guardrail",
+        "description": "SYNTHETIC: redacts PII from claims narratives",
+        "status": "READY",
+        "version": "DRAFT",
+        "createdAt": { "__offset_days__": -40 },
+        "updatedAt": { "__offset_days__": -12 }
+      }
+    ]
+  }
+]

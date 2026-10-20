@@ -1,0 +1,19 @@
+{
+  "operations": {
+    "list_ml_transforms": [ { "TransformIds": ["tfm-synthetic-001"], "NextToken": null } ],
+    "get_ml_transform": [
+      {
+        "TransformId": "tfm-synthetic-001",
+        "Name": "customer-churn-feature-transform",
+        "Description": "SYNTHETIC: feature engineering for churn model",
+        "Arn": "arn:aws:glue:ap-south-1:111122223333:transform/tfm-synthetic-001",
+        "State": "READY",
+        "TransformType": "FINDINGS",
+        "GlueVersion": "4.0",
+        "Role": "arn:aws:iam::111122223333:role/GlueMLRole",
+        "CreateTime": { "__offset_days__": -60 },
+        "UpdateTime": { "__offset_days__": -60 }
+      }
+    ]
+  }
+}

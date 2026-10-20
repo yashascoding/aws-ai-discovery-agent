@@ -1,0 +1,144 @@
+[
+  {
+    "Events": [
+      {
+        "EventId": "ev-synth-11111111-aaaa-4111-8111-111111111111",
+        "EventName": "InvokeModel",
+        "EventSource": "bedrock-runtime.amazonaws.com",
+        "EventTime": { "__offset_days__": -1 },
+        "ReadOnly": true,
+        "Username": "SyntheticDiscoveryRole",
+        "Resources": [],
+        "CloudTrailEvent": {
+          "__json_string__": {
+            "eventName": "InvokeModel",
+            "eventSource": "bedrock-runtime.amazonaws.com",
+            "eventTime": { "__offset_days__": -1 },
+            "awsRegion": "ap-south-1",
+            "eventID": "ev-synth-11111111-aaaa-4111-8111-111111111111",
+            "requestID": "synthetic-req-0001",
+            "readOnly": true,
+            "userAgent": "SyntheticAgent/1.0",
+            "userIdentity": {
+              "type": "AssumedRole",
+              "arn": "arn:aws:iam::111122223333:role/ClaimsWorkloadRole"
+            },
+            "requestParameters": {
+              "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0"
+            }
+          }
+        }
+      },
+      {
+        "EventId": "ev-synth-11111111-aaaa-4111-8111-111111111111",
+        "EventName": "InvokeModel",
+        "EventSource": "bedrock-runtime.amazonaws.com",
+        "EventTime": { "__offset_days__": -1 },
+        "ReadOnly": true,
+        "Username": "SyntheticDiscoveryRole",
+        "Resources": [],
+        "CloudTrailEvent": {
+          "__json_string__": {
+            "eventName": "InvokeModel",
+            "eventSource": "bedrock-runtime.amazonaws.com",
+            "eventTime": { "__offset_days__": -1 },
+            "awsRegion": "ap-south-1",
+            "eventID": "ev-synth-11111111-aaaa-4111-8111-111111111111",
+            "requestID": "synthetic-req-0001",
+            "readOnly": true,
+            "userIdentity": {
+              "type": "AssumedRole",
+              "arn": "arn:aws:iam::111122223333:role/ClaimsWorkloadRole"
+            },
+            "requestParameters": {
+              "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0"
+            }
+          }
+        }
+      },
+      {
+        "EventId": "ev-synth-22222222-bbbb-4222-8222-222222222222",
+        "EventName": "InvokeEndpoint",
+        "EventSource": "sagemaker-runtime.amazonaws.com",
+        "EventTime": { "__offset_days__": -2 },
+        "ReadOnly": true,
+        "Username": "SyntheticDiscoveryRole",
+        "Resources": [],
+        "CloudTrailEvent": {
+          "__json_string__": {
+            "eventName": "InvokeEndpoint",
+            "eventSource": "sagemaker-runtime.amazonaws.com",
+            "eventTime": { "__offset_days__": -2 },
+            "awsRegion": "ap-south-1",
+            "eventID": "ev-synth-22222222-bbbb-4222-8222-222222222222",
+            "requestID": "synthetic-req-0002",
+            "readOnly": true,
+            "errorCode": "ModelNotReadyException",
+            "errorMessage": "SYNTHETIC: model is still deploying",
+            "userIdentity": {
+              "type": "AssumedRole",
+              "arn": "arn:aws:iam::111122223333:role/ClaimsWorkloadRole"
+            },
+            "requestParameters": {
+              "endpointName": "fraud-scoring-endpoint"
+            }
+          }
+        }
+      },
+      {
+        "EventId": "ev-synth-33333333-cccc-4333-8333-333333333333",
+        "EventName": "CreateTrainingJob",
+        "EventSource": "sagemaker.amazonaws.com",
+        "EventTime": { "__offset_days__": -10 },
+        "ReadOnly": false,
+        "Username": "SyntheticDiscoveryRole",
+        "Resources": [],
+        "CloudTrailEvent": {
+          "__json_string__": {
+            "eventName": "CreateTrainingJob",
+            "eventSource": "sagemaker.amazonaws.com",
+            "eventTime": { "__offset_days__": -10 },
+            "awsRegion": "ap-south-1",
+            "eventID": "ev-synth-33333333-cccc-4333-8333-333333333333",
+            "requestID": "synthetic-req-0003",
+            "readOnly": false,
+            "userIdentity": {
+              "type": "AssumedRole",
+              "arn": "arn:aws:iam::111122223333:role/MLOpsPipelineRole"
+            },
+            "requestParameters": {
+              "trainingJobName": "fraud-model-train-001"
+            }
+          }
+        }
+      },
+      {
+        "EventId": "ev-synth-44444444-dddd-4444-8444-444444444444",
+        "EventName": "InvokeModel",
+        "EventSource": "bedrock-runtime.amazonaws.com",
+        "EventTime": { "__offset_days__": -120 },
+        "ReadOnly": true,
+        "Username": "SyntheticDiscoveryRole",
+        "Resources": [],
+        "CloudTrailEvent": {
+          "__json_string__": {
+            "eventName": "InvokeModel",
+            "eventSource": "bedrock-runtime.amazonaws.com",
+            "eventTime": { "__offset_days__": -120 },
+            "awsRegion": "ap-south-1",
+            "eventID": "ev-synth-44444444-dddd-4444-8444-444444444444",
+            "requestID": "synthetic-req-0004",
+            "readOnly": true,
+            "userIdentity": {
+              "type": "AssumedRole",
+              "arn": "arn:aws:iam::111122223333:role/ClaimsWorkloadRole"
+            },
+            "requestParameters": {
+              "modelId": "anthropic.claude-haiku-4-5-20251001-v1:0"
+            }
+          }
+        }
+      }
+    ]
+  }
+]

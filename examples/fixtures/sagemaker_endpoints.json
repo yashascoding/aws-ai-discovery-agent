@@ -1,0 +1,13 @@
+[
+  {
+    "Endpoints": [
+      {
+        "EndpointName": "fraud-scoring-endpoint",
+        "EndpointArn": "arn:aws:sagemaker:ap-south-1:111122223333:endpoint/fraud-scoring-endpoint",
+        "EndpointStatus": "InService",
+        "CreationTime": { "__offset_days__": -30 },
+        "LastModifiedTime": { "__offset_days__": -5 }
+      }
+    ]
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "knowledgeBaseSummaries": [
+      {
+        "knowledgeBaseId": "KBCLAIMSFAQ",
+        "name": "claims-faq-kb",
+        "description": "SYNTHETIC: retrieval over internal claims FAQ",
+        "status": "AVAILABLE",
+        "updatedAt": { "__offset_days__": -25 }
+      }
+    ]
+  }
+]

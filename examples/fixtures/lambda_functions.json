@@ -1,0 +1,31 @@
+[
+  {
+    "Functions": [
+      {
+        "FunctionName": "claims-summarizer",
+        "FunctionArn": "arn:aws:lambda:ap-south-1:111122223333:function:claims-summarizer",
+        "Description": "SYNTHETIC: summarises claim notes for adjusters",
+        "Runtime": "python3.12",
+        "MemorySize": 512,
+        "LastModified": { "__offset_days__": -7 },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_MODEL_ID": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "LOG_LEVEL": "INFO"
+          }
+        },
+        "Layers": []
+      },
+      {
+        "FunctionName": "image-resizer",
+        "FunctionArn": "arn:aws:lambda:ap-south-1:111122223333:function:image-resizer",
+        "Description": "SYNTHETIC: resizes uploaded images",
+        "Runtime": "python3.12",
+        "MemorySize": 256,
+        "LastModified": { "__offset_days__": -90 },
+        "Environment": { "Variables": { "RESIZE_QUALITY": "80" } },
+        "Layers": []
+      }
+    ]
+  }
+]

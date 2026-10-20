@@ -1,0 +1,34 @@
+[
+  {
+    "ResourceTagMappingList": [
+      {
+        "ResourceARN": "arn:aws:sagemaker:ap-south-1:111122223333:endpoint/fraud-scoring-endpoint",
+        "Tags": [
+          { "Key": "AI-System", "Value": "Claims Fraud Scoring" },
+          { "Key": "AI-System-Owner", "Value": "risk-analytics@corp.example" },
+          { "Key": "Owner", "Value": "risk-analytics" },
+          { "Key": "BusinessPurpose", "Value": "Score insurance claims for fraud risk" },
+          { "Key": "Environment", "Value": "prod" },
+          { "Key": "DataClassification", "Value": "confidential" },
+          { "Key": "RiskAssessment", "Value": "completed-2026-08" },
+          { "Key": "HumanOversight", "Value": "analyst-review-queue" }
+        ]
+      },
+      {
+        "ResourceARN": "arn:aws:s3:::ai-claims-documents",
+        "Tags": [
+          { "Key": "AI-System", "Value": "Claims Document Embeddings" },
+          { "Key": "Owner", "Value": "content-platform" },
+          { "Key": "Environment", "Value": "prod" }
+        ]
+      },
+      {
+        "ResourceARN": "arn:aws:lambda:ap-south-1:111122223333:function:claims-summarizer",
+        "Tags": [
+          { "Key": "Owner", "Value": "claims-platform" },
+          { "Key": "Environment", "Value": "prod" }
+        ]
+      }
+    ]
+  }
+]
