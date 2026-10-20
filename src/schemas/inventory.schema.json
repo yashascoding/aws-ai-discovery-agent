@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/ai-inventory-1.0.0.json",
+  "title": "AWS AI Discovery Inventory",
+  "description": "Output schema for the AWS AI discovery agent inventory (reports/inventory.json). Schema version 1.0.0.",
+  "type": "object",
+  "required": ["schema_version", "scan", "records", "errors", "coverage"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "scan": { "$ref": "#/$defs/scanMetadata" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/registryRecord" }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/operationError" }
+    },
+    "coverage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/regionCoverage" }
+    }
+  },
+  "$defs": {
+    "nullableString": { "type": ["string", "null"] },
+    "nullableNumber": { "type": ["number", "null"] },
+    "nullableBoolean": { "type": ["boolean", "null"] },
+    "yesNoUnknown": { "type": ["string", "null"], "enum": ["yes", "no", "unknown", null] },
+    "isoTimestamp": { "type": ["string", "null"], "format": "date-time" },
+    "scanMetadata": {
+      "type": "object",
+      "required": ["scan_id", "started_at", "finished_at", "account_id", "regions_requested", "regions_scanned", "resources_discovered", "read_only"],
+      "additionalProperties": true,
+      "properties": {
+        "scan_id": { "type": "string" },
+        "started_at": { "$ref": "#/$defs/isoTimestamp" },
+        "finished_at": { "$ref": "#/$defs/isoTimestamp" },
+        "duration_seconds": { "$ref": "#/$defs/nullableNumber" },
+        "account_id": { "type": ["string", "null"] },
+        "caller_arn": { "$ref": "#/$defs/nullableString" },
+        "profile": { "$ref": "#/$defs/nullableString" },
+        "regions_requested": { "type": "array", "items": { "type": "string" } },
+        "regions_scanned": { "type": "array", "items": { "type": "string" } },
+        "regions_not_scanned": { "type": "array", "items": { "type": "string" } },
+        "services_attempted": { "type": "array", "items": { "type": "string" } },
+        "resources_discovered": { "type": "integer", "minimum": 0 },
+        "records_total": { "type": "integer", "minimum": 0 },
+        "classification_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "usage_status_counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "activity_evidence_events": { "type": "integer", "minimum": 0 },
+        "error_count": { "type": "integer", "minimum": 0 },
+        "observation_window": {
+          "type": "object",
+          "properties": {
+            "activity_days": { "type": "integer" },
+            "start": { "$ref": "#/$defs/isoTimestamp" },
+            "end": { "$ref": "#/$defs/isoTimestamp" }
+          }
+        },
+        "read_only": { "type": "boolean" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Map of record field name to the source that provided it.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["source"],
+        "properties": {
+          "source": { "type": "string" },
+          "observed_at": { "$ref": "#/$defs/isoTimestamp" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "required": ["evidence_id", "kind", "source"],
+      "properties": {
+        "evidence_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "source": { "type": "string" },
+        "summary": { "type": "string" }
+      }
+    },
+    "registryRecord": {
+      "type": "object",
+      "required": [
+        "record_id", "resource_name", "aws_account_id", "aws_region",
+        "aws_service", "resource_type", "classification", "classification_reasons",
+        "usage_status", "detection_method", "missing_metadata_fields",
+        "human_review_status", "provenance", "first_observed", "last_observed",
+        "last_inventory_scan"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "record_id": { "type": "string", "pattern": "^air-[0-9a-f]{16}$" },
+        "record_version": { "type": "integer", "minimum": 1 },
+        "first_observed": { "$ref": "#/$defs/isoTimestamp" },
+        "first_seen_scan": { "type": "string" },
+        "last_observed": { "$ref": "#/$defs/isoTimestamp" },
+        "last_seen_scan": { "type": "string" },
+        "last_inventory_scan": { "$ref": "#/$defs/isoTimestamp" },
+
+        "ai_system_name": { "$ref": "#/$defs/nullableString" },
+        "resource_name": { "type": ["string", "null"] },
+        "description": { "$ref": "#/$defs/nullableString" },
+        "intended_purpose": { "$ref": "#/$defs/nullableString" },
+        "system_owner": { "$ref": "#/$defs/nullableString" },
+        "business_owner": { "$ref": "#/$defs/nullableString" },
+        "technical_owner": { "$ref": "#/$defs/nullableString" },
+        "owner_source": { "$ref": "#/$defs/nullableString" },
+
+        "aws_account_id": { "$ref": "#/$defs/nullableString" },
+        "aws_region": { "$ref": "#/$defs/nullableString" },
+        "aws_service": { "type": "string" },
+        "resource_type": { "type": "string" },
+        "resource_kind": {
+          "type": "string",
+          "enum": ["catalog", "account_resource", "application_association"]
+        },
+        "resource_arn": { "$ref": "#/$defs/nullableString" },
+        "resource_id": { "$ref": "#/$defs/nullableString" },
+        "creation_time": { "$ref": "#/$defs/isoTimestamp" },
+        "last_modified_time": { "$ref": "#/$defs/isoTimestamp" },
+        "last_observed_activity_time": { "$ref": "#/$defs/isoTimestamp" },
+        "creator_or_last_actor": { "$ref": "#/$defs/nullableString" },
+        "creator_or_last_actor_kind": {
+          "type": ["string", "null"],
+          "enum": ["creator", "recent_api_caller", "unknown", null]
+        },
+
+        "technology_category": { "$ref": "#/$defs/nullableString" },
+        "model_provider": { "$ref": "#/$defs/nullableString" },
+        "model_name_version": { "$ref": "#/$defs/nullableString" },
+        "foundation_model_id": { "$ref": "#/$defs/nullableString" },
+        "inference_profile_id": { "$ref": "#/$defs/nullableString" },
+        "sagemaker_model_arn": { "$ref": "#/$defs/nullableString" },
+        "sagemaker_endpoint_name": { "$ref": "#/$defs/nullableString" },
+        "sagemaker_training_job_name": { "$ref": "#/$defs/nullableString" },
+        "sagemaker_pipeline_arn": { "$ref": "#/$defs/nullableString" },
+        "bedrock_agent_id": { "$ref": "#/$defs/nullableString" },
+        "bedrock_knowledge_base_id": { "$ref": "#/$defs/nullableString" },
+        "bedrock_guardrail_id": { "$ref": "#/$defs/nullableString" },
+        "bedrock_flow_id": { "$ref": "#/$defs/nullableString" },
+        "lifecycle_stage": { "$ref": "#/$defs/nullableString" },
+        "deployment_environment": { "$ref": "#/$defs/nullableString" },
+        "system_status": { "$ref": "#/$defs/nullableString" },
+        "detection_method": { "type": "array", "items": { "type": "string" } },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "CONFIRMED_AI_ACTIVITY",
+            "CONFIGURED_AI_RESOURCE",
+            "POTENTIAL_AI_USAGE",
+            "INACTIVE_OR_STALE",
+            "UNKNOWN"
+          ]
+        },
+        "classification_reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "classification_confidence": {
+          "type": ["string", "null"],
+          "enum": ["high", "medium", "low", null]
+        },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidenceRef" } },
+
+        "last_invocation_time": { "$ref": "#/$defs/isoTimestamp" },
+        "last_successful_invocation_time": { "$ref": "#/$defs/isoTimestamp" },
+        "invocation_count_in_window": { "type": ["integer", "null"], "minimum": 0 },
+        "invocation_window_days": { "type": ["integer", "null"] },
+        "calling_principal": { "$ref": "#/$defs/nullableString" },
+        "evidence_source": { "$ref": "#/$defs/nullableString" },
+        "evidence_event_time": { "$ref": "#/$defs/isoTimestamp" },
+        "cloudtrail_event_ids": { "type": "array", "items": { "type": "string" } },
+        "usage_status": {
+          "type": "string",
+          "enum": [
+            "confirmed",
+            "configured_but_unverified",
+            "potential",
+            "inactive",
+            "unknown"
+          ]
+        },
+        "evidence_limitations": { "type": "array", "items": { "type": "string" } },
+
+        "tags": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ai_association": {
+          "type": ["object", "null"],
+          "description": "Inferred AI linkage from static configuration (never invocation proof).",
+          "properties": {
+            "confidence": { "type": "string" },
+            "basis": { "type": "string" },
+            "indicators": { "type": "array", "items": { "type": "object" } },
+            "note": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "data_categories": { "$ref": "#/$defs/nullableString" },
+        "data_classification": { "$ref": "#/$defs/nullableString" },
+        "personal_data_involved": { "$ref": "#/$defs/yesNoUnknown" },
+        "intended_users": { "$ref": "#/$defs/nullableString" },
+        "human_oversight": { "$ref": "#/$defs/nullableString" },
+        "policy_references": { "type": "array", "items": { "type": "string" } },
+        "risk_assessment_status": { "$ref": "#/$defs/nullableString" },
+        "known_risks_and_mitigations": { "$ref": "#/$defs/nullableString" },
+        "guardrails_or_safety_controls": { "$ref": "#/$defs/nullableString" },
+        "monitoring_arrangements": { "$ref": "#/$defs/nullableString" },
+        "incident_or_change_references": { "type": "array", "items": { "type": "string" } },
+        "follow_up_actions": { "type": "array", "items": { "type": "string" } },
+        "missing_metadata_fields": { "type": "array", "items": { "type": "string" } },
+        "human_review_status": {
+          "type": "string",
+          "enum": ["not_required", "pending", "in_review", "reviewed", "escalated"]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "operationError": {
+      "type": "object",
+      "required": ["service", "operation", "error_type", "message"],
+      "properties": {
+        "service": { "type": "string" },
+        "operation": { "type": "string" },
+        "region": { "type": ["string", "null"] },
+        "error_type": { "type": "string" },
+        "message": { "type": "string" },
+        "scan_id": { "type": ["string", "null"] },
+        "timestamp": { "$ref": "#/$defs/isoTimestamp" }
+      }
+    },
+    "regionCoverage": {
+      "type": "object",
+      "required": ["region", "status"],
+      "properties": {
+        "region": { "type": "string" },
+        "status": { "type": "string", "enum": ["scanned", "skipped", "unreachable", "permission_error"] },
+        "services_attempted": { "type": "array", "items": { "type": "string" } },
+        "services_succeeded": { "type": "array", "items": { "type": "string" } },
+        "services_failed": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
