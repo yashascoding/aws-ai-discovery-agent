@@ -1,0 +1,8 @@
+# Bounded dependency set for the AWS AI discovery POC (Python 3.11+).
+# Install: python -m pip install -r requirements.txt
+boto3>=1.34,<2.0
+# botocore[crt]: required by the SSO/IDC "login" credential provider used by
+# the truvan-poc profile on this machine.
+botocore[crt]>=1.34,<2.0
+jsonschema>=4.20,<5.0
+pytest>=8.0,<10.0
