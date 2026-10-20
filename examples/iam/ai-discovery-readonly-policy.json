@@ -1,0 +1,90 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IdentityAndRegionDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeRegions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:ListProvisionedModelThroughputs",
+        "bedrock:ListCustomModels",
+        "bedrock:ListGuardrails",
+        "bedrock:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockAgentReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agent:ListAgents",
+        "bedrock-agent:ListAgentAliases",
+        "bedrock-agent:ListKnowledgeBases",
+        "bedrock-agent:ListPrompts",
+        "bedrock-agent:ListFlows"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SageMakerReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:ListModels",
+        "sagemaker:ListEndpoints",
+        "sagemaker:ListEndpointConfigs",
+        "sagemaker:ListTrainingJobs",
+        "sagemaker:ListProcessingJobs",
+        "sagemaker:ListPipelines",
+        "sagemaker:ListModelPackages",
+        "sagemaker:ListInferenceComponents",
+        "sagemaker:ListExperiments",
+        "sagemaker:ListTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "GlueMlTransformReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "glue:ListMLTransforms",
+        "glue:GetMLTransform"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:ListFunctions",
+        "lambda:ListTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ResourceTaggingReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "resourcegroupstaggingapi:GetResources"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ActivityEvidenceReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:LookupEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
