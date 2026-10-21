@@ -14,9 +14,8 @@ from src.reporting import (
     write_evidence,
     write_reports,
 )
-from src.registry import RegistryRecord
 from src.scanner import build_scan_metadata, run_scan
-from src.testkit import fixture_session
+from src.testkit import empty_fixture_map, fixture_session
 
 
 @pytest.fixture
@@ -161,3 +160,115 @@ def test_cli_validate_fails_on_invalid_document(tmp_path: Path):
 
 def test_cli_test_live_requires_explicit_opt_in(tmp_path: Path):
     assert main(["test-live", "--report-dir", str(tmp_path)]) == 2
+
+
+def test_cli_scan_merge_keeps_every_artifact_consistent(
+    tmp_path: Path, monkeypatch, capsys
+):
+    """A scan merged with a previous inventory must not under-report records.
+
+    The inventory, the summary counters and the governance gap analysis all
+    describe the same registry; a merge must not leave the summary describing
+    only the records the fresh scan happened to see.
+    """
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    # Seed a previous inventory with real fixture-backed records.
+    seed_config = ScanConfig(
+        profile="synthetic",
+        regions=["ap-south-1"],
+        activity_days=30,
+        report_dir=str(report_dir),
+        scan_id="scan-seed",
+    )
+    seeded = run_scan(seed_config, session_factory=lambda _c: fixture_session())
+    seed_doc = seeded.registry.to_document(
+        build_scan_metadata(seeded),
+        [e.as_dict() for e in seeded.errors],
+        [c.as_dict() for c in seeded.coverage],
+    )
+    report_dir.joinpath("inventory.json").write_text(json.dumps(seed_doc))
+    seeded_count = len(seed_doc["records"])
+    assert seeded_count > 0
+
+    # The next scan discovers nothing (empty account), so everything the
+    # artifacts report must come from the merged registry.
+    from src import scanner as scanner_module
+
+    real_run_scan = scanner_module.run_scan
+
+    def fake_run_scan(config, progress=None, **_kwargs):
+        return real_run_scan(
+            config,
+            progress=progress,
+            session_factory=lambda _c: fixture_session(empty_fixture_map()),
+        )
+
+    monkeypatch.setattr(scanner_module, "run_scan", fake_run_scan)
+
+    assert main(["scan", "--report-dir", str(report_dir)]) == 0
+
+    inventory = json.loads(report_dir.joinpath("inventory.json").read_text())
+    summary = json.loads(report_dir.joinpath("summary.json").read_text())
+    gaps = json.loads(report_dir.joinpath("governance_gaps.json").read_text())
+    report_md = report_dir.joinpath("report.md").read_text()
+
+    # The merged registry still holds the seeded records.
+    assert len(inventory["records"]) == seeded_count
+    assert inventory["scan"]["merged_with_previous"] is True
+
+    # The summary must describe the merged inventory, not the empty scan.
+    assert summary["records_total"] == seeded_count
+    assert summary["records_total"] == len(inventory["records"])
+    assert sum(summary["classification_counts"].values()) == seeded_count
+    assert sum(summary["usage_status_counts"].values()) == seeded_count
+
+    # The governance gaps must cover the merged inventory as well.
+    assert gaps["records_analyzed"] == seeded_count
+    assert gaps["records_analyzed"] == len(inventory["records"])
+
+    # The rendered report must state the same numbers.
+    assert f"Registry records: **{seeded_count}**" in report_md
+    assert f"Records analyzed: **{seeded_count}**" in report_md
+    assert f"Records: {seeded_count}" in capsys.readouterr().out
+
+
+def test_cli_scan_merge_stays_schema_valid(tmp_path: Path, monkeypatch):
+    """The merged document must still satisfy the inventory schema."""
+    report_dir = tmp_path / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    seed_config = ScanConfig(
+        profile="synthetic",
+        regions=["ap-south-1"],
+        activity_days=30,
+        report_dir=str(report_dir),
+        scan_id="scan-seed",
+    )
+    seeded = run_scan(seed_config, session_factory=lambda _c: fixture_session())
+    seed_doc = seeded.registry.to_document(
+        build_scan_metadata(seeded),
+        [e.as_dict() for e in seeded.errors],
+        [c.as_dict() for c in seeded.coverage],
+    )
+    report_dir.joinpath("inventory.json").write_text(json.dumps(seed_doc))
+
+    from src import scanner as scanner_module
+
+    real_run_scan = scanner_module.run_scan
+
+    def fake_run_scan(config, progress=None, **_kwargs):
+        return real_run_scan(
+            config,
+            progress=progress,
+            session_factory=lambda _c: fixture_session(empty_fixture_map()),
+        )
+
+    monkeypatch.setattr(scanner_module, "run_scan", fake_run_scan)
+
+    assert main(["scan", "--report-dir", str(report_dir)]) == 0
+
+    inventory = json.loads(report_dir.joinpath("inventory.json").read_text())
+    assert validate_inventory(inventory) == []
+    validation = json.loads(report_dir.joinpath("schema_validation.json").read_text())
+    assert validation["valid"] is True

@@ -12,7 +12,7 @@ Both write machine-readable results to `reports/test_results.json`.
 ```bash
 # Offline: fixtures + unit tests (no AWS credentials needed)
 python -m src.cli test-fixtures          # 8 scenarios
-python -m pytest tests/ -v               # 44 unit tests
+python -m pytest tests/ -v               # 49 unit tests
 
 # Live: read-only against your account (opt-in)
 python -m src.cli --profile <name> identity
@@ -41,13 +41,13 @@ Result: **8 passed, 0 failed, 0 skipped**.
 
 | File | Focus |
 |---|---|
-| `test_registry.py` | Stable IDs, provenance, merge semantics (fresh wins; evidenced activity never demoted), missing fields |
+| `test_registry.py` | Stable IDs, provenance, merge semantics (fresh wins; evidenced activity never demoted), missing fields, counter refresh after merge |
 | `test_classification.py` | Category selection, event matching, staleness, dedupe |
 | `test_adapters.py` | Catalogue/account split, pagination, Lambda association key-names-only, tag adapter dedup, access-denied partial results |
 | `test_cloudtrail.py` | Parsing, metadata-only sanitisation, window filter, dedupe, summaries |
-| `test_pipeline.py` | End-to-end offline scan, schema validity, activity-vs-existence, governance gaps, report artifacts, CLI commands |
+| `test_pipeline.py` | End-to-end offline scan, schema validity, activity-vs-existence, governance gaps, report artifacts, CLI commands, merged-scan artifact consistency |
 
-Result: **44 passed**.
+Result: **49 passed**.
 
 ## Live test cases (read-only)
 

@@ -31,7 +31,7 @@ permissions are surfaced, not hidden.
   fields with clause references.
 - **Read-only by construction** — no create/modify/tag/delete code paths; the
   only mutating-capable action (model invocation) is gated behind a cost flag.
-- **Fully testable offline** — 8 fixture scenarios + 44 unit tests with no AWS
+- **Fully testable offline** — 8 fixture scenarios + 49 unit tests with no AWS
   account, plus an opt-in live read-only suite.
 
 ## Quick start
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 # No AWS needed:
 python -m src.cli test-fixtures      # offline scenario suite (8)
-python -m pytest tests/ -q           # unit tests (44)
+python -m pytest tests/ -q           # unit tests (49)
 
 # Read-only against your account:
 python -m src.cli --profile <name> identity

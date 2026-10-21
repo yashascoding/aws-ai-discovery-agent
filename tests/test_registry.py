@@ -1,10 +1,15 @@
 """Registry: stable IDs, merge semantics, provenance, missing-field logic."""
+import json
+
 from src.registry import (
     Registry,
     RegistryRecord,
     compute_missing_fields,
     make_record_id,
     merge_records,
+    merge_with_previous,
+    records_from_document,
+    refresh_scan_counts,
 )
 
 
@@ -142,3 +147,102 @@ def test_missing_fields_flagged_for_partially_documented_records():
     assert "human_oversight" in missing
     assert "ai_system_name" not in missing
     assert "intended_purpose" not in missing
+
+
+def _inventory_document(records, **scan_overrides):
+    scan = {
+        "scan_id": "scan-x",
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "finished_at": "2026-01-01T00:05:00+00:00",
+        "account_id": "111122223333",
+        "regions_requested": ["ap-south-1"],
+        "regions_scanned": ["ap-south-1"],
+        "resources_discovered": len(records),
+        "records_total": len(records),
+        "classification_counts": {},
+        "usage_status_counts": {},
+        "activity_evidence_events": 0,
+        "error_count": 0,
+        "read_only": True,
+    }
+    scan.update(scan_overrides)
+    return {
+        "schema_version": "1.0.0",
+        "scan": scan,
+        "records": [r.to_dict() for r in records],
+        "errors": [],
+        "coverage": [],
+    }
+
+
+def test_merge_with_previous_refreshes_inventory_scoped_counters():
+    """Merging records in must not leave the summary describing a different set."""
+    previous_record = RegistryRecord(
+        record_id="air-" + "4" * 16,
+        aws_service="sagemaker",
+        resource_type="sagemaker_endpoint",
+        resource_kind="account_resource",
+        classification="CONFIGURED_AI_RESOURCE",
+        usage_status="configured_but_unverified",
+    )
+    previous = _inventory_document([previous_record])
+
+    # The fresh scan found nothing, so its own counters are empty.
+    fresh = _inventory_document([], resources_discovered=0, records_total=0)
+
+    merged = merge_with_previous(fresh, previous)
+
+    assert len(merged["records"]) == 1
+    assert merged["scan"]["records_total"] == len(merged["records"])
+    assert merged["scan"]["classification_counts"] == {"CONFIGURED_AI_RESOURCE": 1}
+    assert merged["scan"]["usage_status_counts"] == {"configured_but_unverified": 1}
+
+
+def test_records_from_document_round_trips_and_ignores_unknown_keys():
+    record = RegistryRecord(
+        record_id="air-" + "5" * 16,
+        aws_service="bedrock",
+        resource_type="bedrock_guardrail",
+        classification="CONFIGURED_AI_RESOURCE",
+        intended_purpose="Guard rail for PII",
+    )
+    raw = record.to_dict()
+    raw["some_future_field"] = "ignored"
+
+    restored = records_from_document({"records": [raw]})
+
+    assert len(restored) == 1
+    assert restored[0].record_id == record.record_id
+    assert restored[0].intended_purpose == "Guard rail for PII"
+    assert restored[0].classification == "CONFIGURED_AI_RESOURCE"
+
+
+def test_refresh_scan_counts_matches_records_present():
+    records = [
+        RegistryRecord(
+            record_id="air-" + "6" * 16,
+            aws_service="sagemaker",
+            resource_type="sagemaker_endpoint",
+            classification="CONFIRMED_AI_ACTIVITY",
+            usage_status="confirmed",
+        ),
+        RegistryRecord(
+            record_id="air-" + "7" * 16,
+            aws_service="bedrock",
+            resource_type="bedrock_guardrail",
+            resource_kind="catalog",
+            classification="UNKNOWN",
+            usage_status="unknown",
+        ),
+    ]
+    document = _inventory_document(records, records_total=999, classification_counts={"BOGUS": 42})
+
+    refresh_scan_counts(document)
+
+    assert document["scan"]["records_total"] == 2
+    assert document["scan"]["classification_counts"] == {
+        "CONFIRMED_AI_ACTIVITY": 1,
+        "UNKNOWN": 1,
+    }
+    assert document["scan"]["usage_status_counts"] == {"confirmed": 1, "unknown": 1}
+    json.dumps(document)  # must stay JSON-serialisable

@@ -330,19 +330,55 @@ def load_previous_inventory(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _record_from_dict(raw: dict[str, Any]) -> RegistryRecord | None:
+    """Rehydrate one record, ignoring keys this schema version does not know."""
+    known = {f.name for f in fields(RegistryRecord)}
+    payload = {k: v for k, v in raw.items() if k in known}
+    try:
+        return RegistryRecord(**payload)
+    except TypeError:
+        return None
+
+
+def records_from_document(document: dict[str, Any]) -> list[RegistryRecord]:
+    """Rehydrate the registry records held in an inventory document."""
+    out: list[RegistryRecord] = []
+    for raw in document.get("records", []):
+        record = _record_from_dict(raw)
+        if record is not None:
+            out.append(record)
+    return out
+
+
+def refresh_scan_counts(document: dict[str, Any]) -> dict[str, Any]:
+    """Recompute inventory-scoped counters from the document's records.
+
+    ``records_total``, ``classification_counts`` and ``usage_status_counts``
+    describe the *inventory*, so they must be recomputed whenever records are
+    merged in; otherwise the summary contradicts the inventory it describes.
+    """
+    records = document.get("records", [])
+    scan = document.setdefault("scan", {})
+    classification_counts: dict[str, int] = {}
+    usage_counts: dict[str, int] = {}
+    for raw in records:
+        classification = raw.get("classification") or "UNKNOWN"
+        classification_counts[classification] = classification_counts.get(classification, 0) + 1
+        usage = raw.get("usage_status") or "unknown"
+        usage_counts[usage] = usage_counts.get(usage, 0) + 1
+    scan["records_total"] = len(records)
+    scan["classification_counts"] = classification_counts
+    scan["usage_status_counts"] = usage_counts
+    return document
+
+
 def merge_with_previous(document: dict[str, Any], previous: dict[str, Any]) -> dict[str, Any]:
     """Merge a previous inventory's records into a fresh scan document."""
     registry = Registry()
-    for raw in previous.get("records", []):
-        try:
-            registry.upsert(RegistryRecord(**raw))
-        except TypeError:
-            continue
-    for raw in document.get("records", []):
-        try:
-            registry.upsert(RegistryRecord(**raw))
-        except TypeError:
-            continue
+    for record in records_from_document(previous):
+        registry.upsert(record)
+    for record in records_from_document(document):
+        registry.upsert(record)
     merged = dict(document)
     merged["records"] = [
         r.to_dict() for r in sorted(registry.records, key=lambda x: x.record_id)
@@ -352,7 +388,7 @@ def merge_with_previous(document: dict[str, Any], previous: dict[str, Any]) -> d
             key for key, _ in GOVERNANCE_FIELDS
             if getattr_by_key(rec_raw, key) in (None, "", "unknown")
         ]
-    return merged
+    return refresh_scan_counts(merged)
 
 
 def getattr_by_key(rec: dict[str, Any], key: str) -> Any:

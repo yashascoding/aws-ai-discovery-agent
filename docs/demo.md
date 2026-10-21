@@ -16,7 +16,7 @@ pip install -r requirements.txt
 
 ```bash
 python -m src.cli test-fixtures     # 8/8 scenarios, no AWS needed
-python -m pytest tests/ -q          # 44 unit tests
+python -m pytest tests/ -q          # 49 unit tests
 ```
 
 This is the credibility move: the interesting logic (classification, dedupe,

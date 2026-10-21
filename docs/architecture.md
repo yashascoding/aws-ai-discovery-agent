@@ -157,6 +157,25 @@ win** (classification is derived from current evidence and current code), except
 that a previously *evidenced* activity record is never demoted by a fresh
 listing that simply didn't observe it.
 
+### Merge keeps every artifact describing the same registry
+
+A merged scan's inventory can hold more records than the fresh scan discovered.
+Every artifact is therefore derived from the **merged** record set, never from
+the fresh scan alone:
+
+| Artifact | Derived from |
+|---|---|
+| `inventory.json` → `records` | merged registry (previous ∪ fresh) |
+| `inventory.json` → `scan.records_total`, `classification_counts`, `usage_status_counts` | merged record set (`refresh_scan_counts`) |
+| `summary.json` | the same `scan` block |
+| `governance_gaps.json` → `records_analyzed` | merged record set (`analyze_gaps`) |
+| `report.md` | the same counters and gaps |
+
+`resources_discovered` stays scan-scoped: it reports what *this* scan found, not
+what the registry holds. A scan that discovers nothing but merges into an
+existing inventory therefore reports `Resources discovered: 0` alongside
+`Registry records: N` — the two numbers answer different questions on purpose.
+
 ## Safety properties
 
 * **Read-only by default.** The only mutating-capable path is Bedrock model

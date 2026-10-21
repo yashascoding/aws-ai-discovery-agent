@@ -116,7 +116,12 @@ def cmd_identity(args: argparse.Namespace) -> int:
 
 def cmd_scan(args: argparse.Namespace) -> int:
     from .governance import analyze_gaps
-    from .registry import load_previous_inventory, merge_with_previous
+    from .registry import (
+        load_previous_inventory,
+        merge_with_previous,
+        records_from_document,
+        refresh_scan_counts,
+    )
     from .reporting import (
         validate_inventory,
         write_evidence,
@@ -150,8 +155,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
             document["scan"]["merged_with_previous"] = True
             print("  · merged with previous inventory (stable record IDs)")
 
+    # The inventory may now hold more records than this scan discovered, so
+    # the summary counters and the governance gaps must be derived from the
+    # merged document rather than from the fresh scan's registry alone.
+    refresh_scan_counts(document)
     validation_errors = validate_inventory(document)
-    gaps = analyze_gaps(result.registry.records)
+    gaps = analyze_gaps(records_from_document(document))
     paths = write_reports(document, config, gaps=gaps)
     write_evidence([e.as_dict() for e in result.events], config)
     write_validation_report(document, config, validation_errors)
@@ -162,7 +171,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
           f"Errors: {document['scan']['error_count']}")
     print(f"Classifications: {json.dumps(document['scan']['classification_counts'])}")
     print(f"Schema valid: {'yes' if not validation_errors else 'NO — see schema_validation.json'}")
-    for name, path in paths.items():
+    for path in paths.values():
         print(f"  wrote {path}")
     if validation_errors:
         for err in validation_errors[:5]:
@@ -196,7 +205,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_report(args: argparse.Namespace) -> int:
     from .governance import analyze_gaps
-    from .registry import RegistryRecord
+    from .registry import records_from_document, refresh_scan_counts
     from .reporting import write_markdown_report
 
     config = _config_from_args(args)
@@ -206,13 +215,10 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"ERROR: {inventory_path} not found. Run `python -m src.cli scan` first.")
         return 2
     document = json.loads(inventory_path.read_text())
-    records = []
-    for raw in document.get("records", []):
-        try:
-            records.append(RegistryRecord(**raw))
-        except TypeError:
-            continue
-    gaps = analyze_gaps(records)
+    # Derive the counters from the records actually present so the rendered
+    # report can never disagree with the inventory it describes.
+    refresh_scan_counts(document)
+    gaps = analyze_gaps(records_from_document(document))
     test_results = None
     tr_path = report_dir / "test_results.json"
     if tr_path.exists():
