@@ -7,7 +7,7 @@ from src.discovery.application import ApplicationAdapter, find_ai_indicators
 from src.discovery.bedrock import BedrockAdapter
 from src.discovery.sagemaker import SageMakerAdapter
 from src.discovery.tagging import TaggingAdapter, _parse_arn
-from src.testkit import access_denied, default_fixture_map, fixture_session
+from tests.testkit import access_denied, default_fixture_map, fixture_session
 
 
 @pytest.fixture
@@ -23,7 +23,11 @@ def session():
 # --------------------------------------------------------------------------- #
 def test_adapter_registry_contains_all_expected_adapters():
     assert set(ADAPTERS.names()) == {
-        "application", "bedrock", "glue", "sagemaker", "tags"
+        "application", "aurora", "bedrock", "comprehend", "ec2", "ecs", "eks",
+        "forecast", "frauddetector", "glue", "healthimaging", "kendra", "lex",
+        "lookoutequipment", "neptune", "opensearch", "personalize", "polly",
+        "qbusiness", "redshift", "rekognition", "s3", "sagemaker", "tags",
+        "textract", "transcribe", "translate",
     }
 
 

@@ -7,7 +7,6 @@ import pytest
 from src.cli import main
 from src.config import ScanConfig
 from src.governance import analyze_gaps
-from src.offline import run_offline_suite, scenario_h_activity_events
 from src.reporting import (
     render_markdown_report,
     validate_inventory,
@@ -15,7 +14,7 @@ from src.reporting import (
     write_reports,
 )
 from src.scanner import build_scan_metadata, run_scan
-from src.testkit import empty_fixture_map, fixture_session
+from tests.testkit import empty_fixture_map, fixture_session
 
 
 @pytest.fixture
@@ -36,6 +35,10 @@ def offline_scan(tmp_path: Path):
         build_scan_metadata(result),
         [e.as_dict() for e in result.errors],
         [c.as_dict() for c in result.coverage],
+        capabilities=result.capabilities,
+        findings=[f.as_dict() for f in result.findings],
+        usage_measurements=[m.as_dict() for m in result.usage_measurements],
+        cost_records=[c.as_dict() for c in result.cost_records],
     )
     return config, result, document
 
@@ -48,6 +51,11 @@ def test_full_scan_produces_valid_schema_document(offline_scan):
     assert document["scan"]["records_total"] > 0
     assert document["scan"]["read_only"] is True
     assert document["scan"]["account_id"] == "111122223333"
+    assert len(document["capabilities"]) == 55
+    assert document["scan"]["capabilities_total"] == 55
+    assert document["scan"]["usage_collection"]["status"] == "collected"
+    assert document["scan"]["cost_collection"]["status"] == "collected"
+    assert document["scan"]["findings_summary"]["total"] == len(document["findings"]) > 0
 
 
 def test_scan_distinguishes_activity_from_existence(offline_scan):
@@ -128,22 +136,11 @@ def test_markdown_report_renders_with_key_sections(offline_scan):
     assert "not assert compliance or certification" in md or "does not assert" in md
 
 
-def test_offline_suite_all_scenarios_pass(tmp_path: Path):
-    config = ScanConfig(profile="synthetic", regions=["ap-south-1"],
-                        report_dir=str(tmp_path / "reports"))
-    results = run_offline_suite(config)
-    failures = [r for r in results if r.status == "fail"]
-    assert len(results) == 8
-    assert not failures, [f.as_dict() for f in failures]
-
-
-def test_cli_validate_and_report_commands(tmp_path: Path):
+def test_cli_validate_and_report_commands(tmp_path: Path, offline_scan):
+    _config, _result, document = offline_scan
     report_dir = tmp_path / "reports"
     report_dir.mkdir(parents=True)
-    scenario = scenario_h_activity_events(str(tmp_path / "offline"))
-    assert scenario.status == "pass"
-    inventory = tmp_path / "offline" / "scenario_H_inventory.json"
-    report_dir.joinpath("inventory.json").write_text(inventory.read_text())
+    report_dir.joinpath("inventory.json").write_text(json.dumps(document))
 
     assert main(["validate", "--report-dir", str(report_dir)]) == 0
     assert main(["report", "--report-dir", str(report_dir)]) == 0

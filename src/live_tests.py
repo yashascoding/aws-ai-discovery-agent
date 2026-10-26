@@ -13,15 +13,51 @@ Skipped scenarios are recorded with reasons — never silently dropped.
 """
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .aws_identity import create_session, get_identity
 from .config import ScanConfig, utcnow
 from .discovery import ADAPTERS
 from .errors import classify_exception, error_message
-from .offline import ScenarioResult, _save  # reuse scenario plumbing
 from .scanner import build_scan_metadata, run_scan
-from .testkit import default_fixture_map, fixture_session
+
+
+@dataclass
+class ScenarioResult:
+    scenario_id: str
+    name: str
+    setup: str
+    command: str
+    expected: str
+    actual: str
+    status: str
+    evidence: str = ""
+    limitations: str = ""
+    timestamp: str = field(default_factory=lambda: utcnow().isoformat())
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "scenario_id": self.scenario_id,
+            "name": self.name,
+            "setup": self.setup,
+            "command": self.command,
+            "expected": self.expected,
+            "actual": self.actual,
+            "status": self.status,
+            "evidence": self.evidence,
+            "limitations": self.limitations,
+            "timestamp": self.timestamp,
+        }
+
+
+def _save(document: dict[str, Any], report_dir: str, scenario_id: str) -> str:
+    out = Path(report_dir) / f"scenario_{scenario_id}_inventory.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(document, indent=2, default=str))
+    return str(out)
 
 
 def _read_only_scan(config: ScanConfig) -> dict[str, Any]:
@@ -90,10 +126,10 @@ def scenario_live_a_catalogue(config: ScanConfig) -> ScenarioResult:
         expected="Catalogue entries collected; none classified as organizational AI usage",
         actual=actual,
         status=status,
-        evidence="reports/offline/../scenario_LIVE_inventory.json (reports/scenario_LIVE_inventory.json)",
+        evidence="reports/scenario_LIVE_inventory.json",
         limitations=(
             "Catalogue contents depend on Region and model-access status; "
-            "live results are not reproducible from fixtures."
+            "Live results depend on the account's Region and model access."
         ),
     )
 
@@ -206,7 +242,7 @@ def scenario_skipped_b_model_invocation(config: ScanConfig) -> ScenarioResult:
             actual="NOT IMPLEMENTED FOR AUTOMATION: invocation is cost-incurring and "
                    "must be performed and reviewed by the operator manually",
             status="skipped",
-            evidence="docs/test-evidence.md",
+            evidence="reports/test_results.json",
             limitations="Model access, cost, and prompt/response handling require explicit human control.",
         )
     return ScenarioResult(
@@ -217,7 +253,7 @@ def scenario_skipped_b_model_invocation(config: ScanConfig) -> ScenarioResult:
         expected="skipped unless second explicit opt-in is provided",
         actual="skipped: --enable-model-invocation not passed (cost/consent gate)",
         status="skipped",
-        evidence="docs/test-evidence.md",
+        evidence="reports/test_results.json",
         limitations="Prompt/response content is never stored by design.",
     )
 
@@ -229,10 +265,9 @@ def scenario_skipped_c_sagemaker_resource(config: ScanConfig) -> ScenarioResult:
         setup="no resource creation is ever performed by this tool",
         command="n/a (manual approval required)",
         expected="create or reuse the smallest practical non-production SageMaker resource",
-        actual="skipped: automatic resource creation prohibited by safety rules; "
-               "offline fixtures cover SageMaker discovery logic",
+        actual="skipped: automatic resource creation prohibited by safety rules",
         status="skipped",
-        evidence="docs/test-evidence.md",
+        evidence="reports/test_results.json",
         limitations="Real-time endpoints cost money; use manual approval + cleanup script.",
     )
 
@@ -244,10 +279,9 @@ def scenario_skipped_e_tag_mutation(config: ScanConfig) -> ScenarioResult:
         setup="tagging requires write permissions and an approved test resource",
         command="n/a (manual approval required)",
         expected="tags written to an approved test resource then discovered",
-        actual="skipped: write operation; offline scenario E validates tag ingestion "
-               "from read-only tag listings",
+        actual="skipped: write operation requires an operator-approved test resource",
         status="skipped",
-        evidence="docs/test-evidence.md",
+        evidence="reports/test_results.json",
         limitations="Live write-path validation requires operator-approved resources.",
     )
 

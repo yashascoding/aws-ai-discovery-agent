@@ -1,8 +1,7 @@
-"""Offline test kit: fake boto3 sessions backed by synthetic AWS fixtures.
+"""Test kit: fake boto3 sessions backed by synthetic AWS fixtures.
 
-Used by `python -m src.cli test-fixtures` and unit tests. No network calls,
-no credentials, no fabricated "live" results: everything here is explicitly
-synthetic and labelled as such in outputs.
+Used only by the unit test suite. No network calls, no credentials, and no
+fixtures are used by the application or CLI.
 """
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ from typing import Any, Callable
 
 from botocore.exceptions import ClientError
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent / "examples" / "fixtures"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 # --------------------------------------------------------------------------- #
@@ -205,6 +204,98 @@ def fixture_session(
     )
 
 
+
+
+def _empty_collection_operations() -> dict[str, dict[str, Any]]:
+    """Empty successful pages for services added by the broad discovery scope."""
+    return {
+        "rekognition": {"operations": {
+            "list_collections": [{"CollectionIds": []}],
+            "list_stream_processors": [{"StreamProcessors": []}],
+            "describe_projects": [{"ProjectDescriptions": []}],
+        }},
+        "textract": {"operations": {"list_adapters": [{"Adapters": []}]}},
+        "comprehend": {"operations": {
+            "list_entities_detection_jobs": [{"EntitiesDetectionJobPropertiesList": []}],
+            "list_document_classification_jobs": [{"DocumentClassificationJobPropertiesList": []}],
+            "list_sentiment_detection_jobs": [{"SentimentDetectionJobPropertiesList": []}],
+            "list_topics_detection_jobs": [{"TopicsDetectionJobPropertiesList": []}],
+            "list_key_phrases_detection_jobs": [{"KeyPhrasesDetectionJobPropertiesList": []}],
+            "list_pii_entities_detection_jobs": [{"PiiEntitiesDetectionJobPropertiesList": []}],
+            "list_document_classifiers": [{"DocumentClassifierPropertiesList": []}],
+            "list_entity_recognizers": [{"EntityRecognizerPropertiesList": []}],
+            "list_endpoints": [{"EndpointPropertiesList": []}],
+            "list_flywheels": [{"FlywheelSummaryList": []}],
+        }},
+        "lexv2-models": {"operations": {"list_bots": [{"botSummaries": []}]}},
+        "polly": {"operations": {
+            "list_lexicons": [{"Lexicons": []}],
+            "list_speech_synthesis_tasks": [{"SynthesisTasks": []}],
+        }},
+        "transcribe": {"operations": {
+            "list_transcription_jobs": [{"TranscriptionJobSummaries": []}],
+            "list_medical_transcription_jobs": [{"MedicalTranscriptionJobSummaries": []}],
+            "list_medical_scribe_jobs": [{"MedicalScribeJobSummaries": []}],
+            "list_call_analytics_jobs": [{"CallAnalyticsJobSummaries": []}],
+            "list_vocabularies": [{"Vocabularies": []}],
+            "list_medical_vocabularies": [{"Vocabularies": []}],
+            "list_language_models": [{"Models": []}],
+        }},
+        "translate": {"operations": {
+            "list_terminologies": [{"TerminologyPropertiesList": []}],
+            "list_parallel_data": [{"ParallelDataPropertiesList": []}],
+            "list_text_translation_jobs": [{"TextTranslationJobPropertiesList": []}],
+        }},
+        "personalize": {"operations": {
+            "list_datasets": [{"datasets": []}],
+            "list_dataset_groups": [{"datasetGroups": []}],
+            "list_solutions": [{"solutions": []}],
+            "list_campaigns": [{"campaigns": []}],
+            "list_recommenders": [{"recommenders": []}],
+            "list_event_trackers": [{"eventTrackers": []}],
+            "list_filters": [{"Filters": []}],
+        }},
+        "kendra": {"operations": {
+            "list_indices": [{"IndexConfigurationSummaryItems": []}],
+            "list_faqs": [{"FaqSummaryItems": []}],
+        }},
+        "qbusiness": {"operations": {"list_applications": [{"applications": []}]}},
+        "frauddetector": {"operations": {
+            "get_detectors": [{"detectors": []}],
+            "get_models": [{"models": []}],
+        }},
+        "forecast": {"operations": {
+            "list_datasets": [{"Datasets": []}],
+            "list_dataset_groups": [{"DatasetGroups": []}],
+            "list_predictors": [{"Predictors": []}],
+            "list_forecasts": [{"Forecasts": []}],
+            "list_monitors": [{"Monitors": []}],
+        }},
+        "lookoutequipment": {"operations": {
+            "list_datasets": [{"DatasetSummaries": []}],
+            "list_models": [{"ModelSummaries": []}],
+            "list_inference_schedulers": [{"InferenceSchedulerSummaries": []}],
+        }},
+        "medical-imaging": {"operations": {"list_datastores": [{"datastoreSummaries": []}]}},
+        "ec2": {"operations": {
+            "describe_instances": [{"Reservations": []}],
+            "describe_instance_types": [{"InstanceTypes": []}],
+            "describe_regions": [{"Regions": [
+                {"RegionName": "ap-south-1"}, {"RegionName": "us-east-1"},
+            ]}],
+        }},
+        "ecs": {"operations": {"list_clusters": [{"clusterArns": []}]}},
+        "eks": {"operations": {"list_clusters": [{"clusters": []}]}},
+        "s3": {"operations": {"list_buckets": [{"Buckets": []}]}},
+        "opensearch": {"operations": {"list_domain_names": [{"DomainNames": []}]}},
+        "redshift": {"operations": {"describe_clusters": [{"Clusters": []}]}},
+        "rds": {"operations": {"describe_db_clusters": [{"DBClusters": []}]}},
+        "neptune": {"operations": {"describe_db_clusters": [{"DBClusters": []}]}},
+        "cloudwatch": {"operations": {"list_metrics": [{"Metrics": []}]}},
+        "ce": {"operations": {"get_cost_and_usage": [{"ResultsByTime": []}]}},
+    }
+
+
 def default_fixture_map() -> dict[str, dict[str, Any]]:
     """Canonical synthetic fixture set used by the offline suite."""
     return {
@@ -245,6 +336,13 @@ def default_fixture_map() -> dict[str, dict[str, Any]]:
                 "list_inference_components": [{"InferenceComponentSummaries": []}],
                 "list_experiments": [{"ExperimentSummaries": []}],
                 "list_pipeline_executions": [{"PipelineExecutionSummaries": []}],
+                "list_domains": [{"Domains": []}],
+                "list_user_profiles": [{"UserProfiles": []}],
+                "list_apps": [{"Apps": []}],
+                "list_spaces": [{"Spaces": []}],
+                "list_projects": [{"ProjectSummaryList": []}],
+                "list_flow_definitions": [{"FlowDefinitionSummaries": []}],
+                "list_human_task_uis": [{"HumanTaskUiSummaries": []}],
             },
         },
         "glue": load_resolved("glue_fixture_map.json"),
@@ -260,6 +358,7 @@ def default_fixture_map() -> dict[str, dict[str, Any]]:
         "ec2": {"operations": {"describe_regions": [{"Regions": [
             {"RegionName": "ap-south-1"}, {"RegionName": "us-east-1"},
         ]}]}},
+        **_empty_collection_operations(),
     }
 
 
@@ -296,6 +395,13 @@ def empty_fixture_map() -> dict[str, dict[str, Any]]:
             "list_inference_components": [{"InferenceComponentSummaries": []}],
             "list_experiments": [{"ExperimentSummaries": []}],
             "list_pipeline_executions": [{"PipelineExecutionSummaries": []}],
+            "list_domains": [{"Domains": []}],
+            "list_user_profiles": [{"UserProfiles": []}],
+            "list_apps": [{"Apps": []}],
+            "list_spaces": [{"Spaces": []}],
+            "list_projects": [{"ProjectSummaryList": []}],
+            "list_flow_definitions": [{"FlowDefinitionSummaries": []}],
+            "list_human_task_uis": [{"HumanTaskUiSummaries": []}],
         }},
         "glue": {"operations": {"list_ml_transforms": [{"Transforms": []}]}},
         "lambda": {"operations": {"list_functions": [{"Functions": []}]}},
@@ -304,4 +410,5 @@ def empty_fixture_map() -> dict[str, dict[str, Any]]:
         "ec2": {"operations": {"describe_regions": [{"Regions": [
             {"RegionName": "ap-south-1"}, {"RegionName": "us-east-1"},
         ]}]}},
+        **_empty_collection_operations(),
     }

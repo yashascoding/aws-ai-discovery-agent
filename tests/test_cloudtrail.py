@@ -8,7 +8,7 @@ from src.evidence.cloudtrail import (
     parse_cloudtrail_event,
     summarize_events,
 )
-from src.testkit import fixture_session
+from tests.testkit import fixture_session
 
 NOW = datetime.now(timezone.utc)
 
