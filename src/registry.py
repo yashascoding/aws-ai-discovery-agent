@@ -153,6 +153,9 @@ class RegistryRecord:
     evidence_event_time: str | None = None
     cloudtrail_event_ids: list[str] = field(default_factory=list)
     evidence_limitations: list[str] = field(default_factory=list)
+    usage_measurements: list[dict[str, Any]] = field(default_factory=list)
+    cost_records: list[dict[str, Any]] = field(default_factory=list)
+    findings: list[dict[str, Any]] = field(default_factory=list)
 
     # Governance and risk
     tags: dict[str, str] = field(default_factory=dict)
@@ -225,18 +228,32 @@ class Registry:
         scan_meta: dict[str, Any],
         errors: list[dict[str, Any]],
         coverage: list[dict[str, Any]],
+        *,
+        capabilities: list[dict[str, Any]] | None = None,
+        findings: list[dict[str, Any]] | None = None,
+        usage_measurements: list[dict[str, Any]] | None = None,
+        cost_records: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         records = []
         for rec in sorted(self._records.values(), key=lambda r: r.record_id):
             rec.missing_metadata_fields = compute_missing_fields(rec)
             records.append(rec.to_dict())
-        return {
+        document = {
             "schema_version": SCHEMA_VERSION,
             "scan": scan_meta,
             "records": records,
             "errors": errors,
             "coverage": coverage,
         }
+        if capabilities is not None:
+            document["capabilities"] = capabilities
+        if findings is not None:
+            document["findings"] = findings
+        if usage_measurements is not None:
+            document["usage_measurements"] = usage_measurements
+        if cost_records is not None:
+            document["cost_records"] = cost_records
+        return document
 
 
 def merge_records(existing: RegistryRecord, incoming: RegistryRecord) -> RegistryRecord:

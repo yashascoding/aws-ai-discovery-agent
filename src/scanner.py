@@ -29,6 +29,9 @@ from .evidence.cloudtrail import (
 from .region_discovery import RegionCoverage, resolve_scan_regions
 from .registry import Registry, RegistryRecord, make_record_id
 from .discovery.tagging import collect_tags
+from .costs import CostCollectionResult, CostRecord
+from .findings import Finding
+from .usage import UsageCollectionResult, UsageMeasurement
 
 logger = get_logger(__name__)
 
@@ -42,6 +45,13 @@ class ScanResult:
     coverage: list[RegionCoverage] = field(default_factory=list)
     events: list[ActivityEvent] = field(default_factory=list)
     services_attempted: list[str] = field(default_factory=list)
+    adapter_outcomes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    usage_collection: UsageCollectionResult | None = None
+    usage_measurements: list[UsageMeasurement] = field(default_factory=list)
+    cost_collection: CostCollectionResult | None = None
+    cost_records: list[CostRecord] = field(default_factory=list)
+    capabilities: list[dict[str, Any]] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
     resources_discovered: int = 0
     started_at: str = ""
     finished_at: str = ""
@@ -236,7 +246,7 @@ def run_scan(
     progress: Callable[[str], None] | None = None,
     session_factory: Callable[[ScanConfig], Any] | None = None,
 ) -> ScanResult:
-    """Execute a scan. ``session_factory`` allows offline (fake session) runs."""
+    """Execute a scan. ``session_factory`` is only used by unit tests."""
 
     def say(message: str) -> None:
         logger.info(message)
@@ -291,6 +301,12 @@ def run_scan(
                 )
                 continue
             coverage.services_attempted.append(adapter.name)
+            outcome = result.adapter_outcomes.setdefault(
+                adapter.name,
+                {"service": adapter.service, "attempted": True, "succeeded": False,
+                 "regions": [], "operations_succeeded": [], "errors": []},
+            )
+            outcome["regions"].append(region)
             try:
                 adapter_result: AdapterResult = adapter.discover(session, region)
             except Exception as exc:  # noqa: BLE001 - adapter must not kill the scan
@@ -305,12 +321,25 @@ def run_scan(
                     )
                 )
                 coverage.services_failed.append(adapter.name)
+                outcome["errors"].append({
+                    "service": adapter.service, "operation": "discover", "region": region,
+                    "error_type": "adapter_crash", "message": f"{type(exc).__name__}: {exc}",
+                })
                 continue
             region_resources.extend(adapter_result.resources)
             result.errors.extend(adapter_result.errors)
             result.notes.extend(adapter_result.notes)
+            for op in adapter_result.operations_attempted:
+                if op not in result.services_attempted:
+                    result.services_attempted.append(op)
+            for op in adapter_result.operations_succeeded:
+                if op not in outcome["operations_succeeded"]:
+                    outcome["operations_succeeded"].append(op)
+            for err in adapter_result.errors:
+                outcome["errors"].append(err.as_dict())
             if adapter_result.operations_succeeded:
                 any_success = True
+                outcome["succeeded"] = True
                 coverage.services_succeeded.append(adapter.name)
             if adapter_result.errors:
                 failed_ops = {e.operation for e in adapter_result.errors}
@@ -380,6 +409,28 @@ def run_scan(
     # Classification across all records.
     classify_all(result.registry.records, result.events, window_days=config.activity_days)
 
+    # Usage, billing, capability coverage, and findings. Enrichment failures are
+    # isolated so the inventory remains usable and the failure stays visible.
+    try:
+        from .insights import enrich_scan
+        say("Collecting usage, cost, and coverage evidence ...")
+        enrich_scan(result, session, config)
+        usage_status = result.usage_collection.status if result.usage_collection else "not_configured"
+        cost_status = result.cost_collection.status if result.cost_collection else "not_configured"
+        say(
+            f"Usage: {usage_status} ({len(result.usage_measurements)} measurements); "
+            f"Cost: {cost_status} ({len(result.cost_records)} records); "
+            f"Findings: {len(result.findings)}"
+        )
+    except Exception as exc:  # noqa: BLE001 - enrichment must not lose inventory
+        logger.exception("enrichment failed")
+        result.errors.append(OperationError(
+            service="insights", operation="enrich_scan", region=None,
+            error_type="collection_failed",
+            message=f"{type(exc).__name__}: {exc}", scan_id=config.scan_id,
+        ))
+        result.notes.append("Insights enrichment failed; inventory and activity evidence are still valid.")
+
     result.finished_at = utcnow().isoformat()
     result.duration_seconds = round(time.monotonic() - started, 3)
     say(
@@ -398,6 +449,14 @@ def build_scan_metadata(result: ScanResult) -> dict[str, Any]:
     for rec in records:
         classification_counts[rec.classification] = classification_counts.get(rec.classification, 0) + 1
         usage_counts[rec.usage_status] = usage_counts.get(rec.usage_status, 0) + 1
+
+    findings_by_severity: dict[str, int] = {}
+    for finding in result.findings:
+        findings_by_severity[finding.severity] = findings_by_severity.get(finding.severity, 0) + 1
+    capabilities_by_status: dict[str, int] = {}
+    for cap in result.capabilities:
+        status = cap.get("discovery_status")
+        capabilities_by_status[status] = capabilities_by_status.get(status, 0) + 1
 
     return {
         "scan_id": config.scan_id,
@@ -425,6 +484,31 @@ def build_scan_metadata(result: ScanResult) -> dict[str, Any]:
             "start": config.observation_start.isoformat(),
             "end": utcnow().isoformat(),
         },
+        "usage_collection": {
+            "enabled": config.enable_usage_collection,
+            "lookback_days": config.usage_lookback_days,
+            "status": result.usage_collection.status if result.usage_collection else "not_configured",
+            "reason": result.usage_collection.reason if result.usage_collection else None,
+            "measurement_count": len(result.usage_measurements),
+            "namespaces_succeeded": result.usage_collection.namespaces_succeeded if result.usage_collection else [],
+        },
+        "cost_collection": {
+            "enabled": config.enable_cost_collection,
+            "lookback_days": config.cost_lookback_days,
+            "status": result.cost_collection.status if result.cost_collection else "not_configured",
+            "reason": result.cost_collection.reason if result.cost_collection else None,
+            "record_count": len(result.cost_records),
+            "mapped_reported_amount": result.cost_collection.mapped_amount if result.cost_collection else None,
+            "unattributed_reported_amount": result.cost_collection.unattributed_amount if result.cost_collection else None,
+            "currency": result.cost_collection.currency if result.cost_collection else None,
+            "data_through": result.cost_collection.data_through if result.cost_collection else None,
+        },
+        "findings_summary": {
+            "total": len(result.findings),
+            "by_severity": findings_by_severity,
+        },
+        "capabilities_total": len(result.capabilities),
+        "capabilities_by_discovery_status": capabilities_by_status,
         "read_only": True,
         "notes": result.notes[:50],
     }

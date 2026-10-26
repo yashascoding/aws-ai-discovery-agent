@@ -20,6 +20,22 @@
     "coverage": {
       "type": "array",
       "items": { "$ref": "#/$defs/regionCoverage" }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/serviceCapability" }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "usage_measurements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/usageMeasurement" }
+    },
+    "cost_records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/costRecord" }
     }
   },
   "$defs": {
@@ -218,7 +234,145 @@
           "type": "string",
           "enum": ["not_required", "pending", "in_review", "reviewed", "escalated"]
         },
+        "usage_measurements": { "type": "array", "items": { "$ref": "#/$defs/usageMeasurement" } },
+        "cost_records": { "type": "array", "items": { "$ref": "#/$defs/costRecord" } },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
         "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "usageMeasurement": {
+      "type": "object",
+      "required": ["measurement_id", "source", "collection_status"],
+      "additionalProperties": false,
+      "properties": {
+        "measurement_id": { "type": "string" },
+        "source": { "type": "string", "enum": ["cloudwatch"] },
+        "service": { "type": ["string", "null"] },
+        "capability_keys": { "type": "array", "items": { "type": "string" } },
+        "namespace": { "$ref": "#/$defs/nullableString" },
+        "metric_name": { "$ref": "#/$defs/nullableString" },
+        "statistic": { "$ref": "#/$defs/nullableString" },
+        "period_seconds": { "type": ["integer", "null"] },
+        "unit": { "$ref": "#/$defs/nullableString" },
+        "dimensions": { "type": "object", "additionalProperties": { "type": "string" } },
+        "scope": { "type": "string", "enum": ["resource", "service"] },
+        "resource_record_id": { "$ref": "#/$defs/nullableString" },
+        "resource_id": { "$ref": "#/$defs/nullableString" },
+        "start_time": { "$ref": "#/$defs/isoTimestamp" },
+        "end_time": { "$ref": "#/$defs/isoTimestamp" },
+        "datapoint_count": { "type": "integer", "minimum": 0 },
+        "total": { "$ref": "#/$defs/nullableNumber" },
+        "average": { "$ref": "#/$defs/nullableNumber" },
+        "minimum": { "$ref": "#/$defs/nullableNumber" },
+        "maximum": { "$ref": "#/$defs/nullableNumber" },
+        "latest_value": { "$ref": "#/$defs/nullableNumber" },
+        "latest_timestamp": { "$ref": "#/$defs/isoTimestamp" },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["timestamp", "value"],
+            "properties": {
+              "timestamp": { "type": "string" },
+              "value": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "attribution_confidence": { "type": "string" },
+        "collection_status": {
+          "type": "string",
+          "enum": ["collected", "partial", "no_datapoints", "permission_denied", "not_configured", "unsupported", "failed"]
+        },
+        "limitation": { "$ref": "#/$defs/nullableString" },
+        "observed_at": { "$ref": "#/$defs/isoTimestamp" }
+      }
+    },
+    "costRecord": {
+      "type": "object",
+      "required": ["cost_record_id", "source", "period_start", "service_name"],
+      "additionalProperties": false,
+      "properties": {
+        "cost_record_id": { "type": "string" },
+        "source": { "type": "string", "enum": ["cost_explorer", "cur"] },
+        "period_start": { "type": "string" },
+        "period_end": { "$ref": "#/$defs/nullableString" },
+        "granularity": { "type": "string" },
+        "service_name": { "type": "string" },
+        "capability_keys": { "type": "array", "items": { "type": "string" } },
+        "category": { "$ref": "#/$defs/nullableString" },
+        "region": { "$ref": "#/$defs/nullableString" },
+        "usage_type": { "$ref": "#/$defs/nullableString" },
+        "usage_account_id": { "$ref": "#/$defs/nullableString" },
+        "amount": { "$ref": "#/$defs/nullableNumber" },
+        "usage_quantity": { "$ref": "#/$defs/nullableNumber" },
+        "currency": { "type": "string" },
+        "record_type": { "type": "string" },
+        "estimated": { "$ref": "#/$defs/nullableBoolean" },
+        "attribution_confidence": { "type": "string" },
+        "resource_record_id": { "$ref": "#/$defs/nullableString" },
+        "resource_id": { "$ref": "#/$defs/nullableString" },
+        "data_through": { "$ref": "#/$defs/nullableString" },
+        "limitation": { "$ref": "#/$defs/nullableString" },
+        "observed_at": { "$ref": "#/$defs/isoTimestamp" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["finding_id", "finding_type", "severity", "title", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": { "type": "string" },
+        "finding_type": { "type": "string" },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "service": { "$ref": "#/$defs/nullableString" },
+        "region": { "$ref": "#/$defs/nullableString" },
+        "resource_record_id": { "$ref": "#/$defs/nullableString" },
+        "resource_id": { "$ref": "#/$defs/nullableString" },
+        "capability_keys": { "type": "array", "items": { "type": "string" } },
+        "evidence_refs": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string" },
+        "recommendation": { "$ref": "#/$defs/nullableString" },
+        "detected_at": { "$ref": "#/$defs/isoTimestamp" },
+        "status": { "type": "string" }
+      }
+    },
+    "serviceCapability": {
+      "type": "object",
+      "required": ["key", "display_name", "category", "discovery_status", "usage_status", "billing_status"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" },
+        "display_name": { "type": "string" },
+        "category": { "type": "string", "enum": ["managed_ai", "ai_infrastructure", "supporting_ai"] },
+        "adapter": { "$ref": "#/$defs/nullableString" },
+        "discovery_status": {
+          "type": "string",
+          "enum": ["supported", "partial", "not_configured", "permission_denied", "unsupported", "collection_failed"]
+        },
+        "usage_status": {
+          "type": "string",
+          "enum": ["supported", "partial", "not_configured", "permission_denied", "unsupported", "collection_failed"]
+        },
+        "billing_status": {
+          "type": "string",
+          "enum": ["supported", "partial", "not_configured", "permission_denied", "unsupported", "collection_failed"]
+        },
+        "usage_namespaces": { "type": "array", "items": { "type": "string" } },
+        "cost_service_names": { "type": "array", "items": { "type": "string" } },
+        "required_permissions": { "type": "array", "items": { "type": "string" } },
+        "supported_regions": { "type": "string" },
+        "last_successful_collection": { "$ref": "#/$defs/isoTimestamp" },
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "status_reason": { "$ref": "#/$defs/nullableString" },
+        "resource_count": { "type": ["integer", "null"], "minimum": 0 },
+        "usage_measurement_count": { "type": ["integer", "null"], "minimum": 0 },
+        "cost_record_count": { "type": ["integer", "null"], "minimum": 0 },
+        "reported_cost": { "$ref": "#/$defs/nullableNumber" },
+        "cost_currency": { "$ref": "#/$defs/nullableString" },
+        "estimated_cost": { "$ref": "#/$defs/nullableNumber" }
       }
     },
     "operationError": {

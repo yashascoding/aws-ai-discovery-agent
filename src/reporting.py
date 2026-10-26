@@ -85,6 +85,9 @@ CSV_COLUMNS = [
     "record_version",
     "first_seen_scan",
     "last_seen_scan",
+    "usage_measurement_count",
+    "reported_cost_total",
+    "finding_count",
 ]
 
 
@@ -127,6 +130,11 @@ def write_reports(
                 e.get("evidence_id", "") for e in record.get("evidence", [])
             )
             row["detection_method"] = "; ".join(record.get("detection_method", []))
+            row["usage_measurement_count"] = len(record.get("usage_measurements", []))
+            row["reported_cost_total"] = round(
+                sum(float(c.get("amount") or 0) for c in record.get("cost_records", [])), 6
+            )
+            row["finding_count"] = len(record.get("findings", []))
             writer.writerow(row)
     paths["inventory.csv"] = csv_path
 
@@ -165,6 +173,132 @@ def write_reports(
         gaps_path = report_dir / "governance_gaps.json"
         _write_json(gaps_path, gaps)
         paths["governance_gaps.json"] = gaps_path
+
+    # Usage, cost, findings, and coverage artifacts. These are always written so
+    # downstream consumers never have to guess whether collection was disabled.
+    usage = document.get("usage_measurements", [])
+    usage_path = report_dir / "usage_measurements.json"
+    _write_json(usage_path, {
+        "generated_at": utcnow().isoformat(),
+        "scan_id": config.scan_id,
+        "measurement_count": len(usage),
+        "interpretation_note": (
+            "A missing metric or datapoint is not zero usage. Service-scoped "
+            "measurements are never attributed to a specific resource."
+        ),
+        "measurements": usage,
+    })
+    paths["usage_measurements.json"] = usage_path
+
+    usage_csv = report_dir / "usage_measurements.csv"
+    with usage_csv.open("w", newline="", encoding="utf-8") as fh:
+        fields = [
+            "measurement_id", "service", "namespace", "metric_name", "statistic",
+            "scope", "resource_id", "datapoint_count", "total", "average",
+            "maximum", "latest_value", "latest_timestamp", "collection_status",
+            "attribution_confidence",
+        ]
+        writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        for measurement in usage:
+            writer.writerow(measurement)
+    paths["usage_measurements.csv"] = usage_csv
+
+    costs = document.get("cost_records", [])
+    cost_summary = (document.get("scan", {}).get("cost_collection") or {})
+    cost_path = report_dir / "costs.json"
+    _write_json(cost_path, {
+        "generated_at": utcnow().isoformat(),
+        "scan_id": config.scan_id,
+        **cost_summary,
+        "record_count": len(costs),
+        "records": costs,
+    })
+    paths["costs.json"] = cost_path
+
+    costs_csv = report_dir / "costs.csv"
+    with costs_csv.open("w", newline="", encoding="utf-8") as fh:
+        fields = [
+            "cost_record_id", "source", "period_start", "period_end", "service_name",
+            "category", "region", "usage_type", "amount", "currency", "record_type",
+            "estimated", "attribution_confidence", "resource_id", "limitation",
+        ]
+        writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(costs)
+    paths["costs.csv"] = costs_csv
+
+    findings = document.get("findings", [])
+    findings_path = report_dir / "findings.json"
+    counts: dict[str, int] = {}
+    for finding in findings:
+        severity = finding.get("severity", "unknown")
+        counts[severity] = counts.get(severity, 0) + 1
+    _write_json(findings_path, {
+        "generated_at": utcnow().isoformat(),
+        "scan_id": config.scan_id,
+        "finding_count": len(findings),
+        "severity_counts": counts,
+        "interpretation_note": (
+            "Findings are advisory and evidence-bound. A missing telemetry finding "
+            "means usage could not be measured; it does not mean zero usage."
+        ),
+        "findings": findings,
+    })
+    paths["findings.json"] = findings_path
+
+    findings_csv = report_dir / "findings.csv"
+    with findings_csv.open("w", newline="", encoding="utf-8") as fh:
+        fields = [
+            "finding_id", "finding_type", "severity", "title", "service", "region",
+            "resource_id", "capability_keys", "confidence", "recommendation",
+        ]
+        writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        for finding in findings:
+            row = dict(finding)
+            row["capability_keys"] = "; ".join(finding.get("capability_keys", []))
+            writer.writerow(row)
+    paths["findings.csv"] = findings_csv
+
+    capabilities = document.get("capabilities", [])
+    status_counts: dict[str, int] = {}
+    for cap in capabilities:
+        status = cap.get("discovery_status", "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+    coverage_path = report_dir / "coverage_report.json"
+    _write_json(coverage_path, {
+        "generated_at": utcnow().isoformat(),
+        "scan_id": config.scan_id,
+        "capability_count": len(capabilities),
+        "discovery_status_counts": status_counts,
+        "scorecard": [
+            {
+                "service": cap.get("display_name"),
+                "key": cap.get("key"),
+                "category": cap.get("category"),
+                "discovery": cap.get("discovery_status"),
+                "usage": cap.get("usage_status"),
+                "billing": cap.get("billing_status"),
+                "reason": cap.get("status_reason"),
+            }
+            for cap in capabilities
+        ],
+    })
+    paths["coverage_report.json"] = coverage_path
+
+    coverage_csv = report_dir / "coverage_report.csv"
+    with coverage_csv.open("w", newline="", encoding="utf-8") as fh:
+        fields = [
+            "key", "display_name", "category", "adapter", "discovery_status",
+            "usage_status", "billing_status", "resource_count",
+            "usage_measurement_count", "cost_record_count", "reported_cost",
+            "status_reason",
+        ]
+        writer = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(capabilities)
+    paths["coverage_report.csv"] = coverage_csv
 
     # Evidence (sanitized)
     evidence_events = (config.report_dir + "/evidence/cloudtrail-events.json")
@@ -290,6 +424,65 @@ def render_markdown_report(
             )
         lines.append("")
 
+    # Usage / cost / findings coverage
+    caps = document.get("capabilities", [])
+    if caps:
+        lines.append("## Collection coverage")
+        lines.append("")
+        lines.append("| Service | Category | Discovery | Usage | Billing | Reason |")
+        lines.append("|---|---|---|---|---|---|")
+        for cap in caps[:60]:
+            reason = (cap.get("status_reason") or "—").replace("|", "\\|")[:90]
+            lines.append(
+                f"| {cap.get('display_name')} | {cap.get('category')} "
+                f"| {cap.get('discovery_status')} | {cap.get('usage_status')} "
+                f"| {cap.get('billing_status')} | {reason} |"
+            )
+        if len(caps) > 60:
+            lines.append("")
+            lines.append(f"_... {len(caps) - 60} more in `coverage_report.json`._")
+        lines.append("")
+
+    usage = document.get("usage_measurements", [])
+    costs = document.get("cost_records", [])
+    findings = document.get("findings", [])
+    if usage or costs or findings:
+        lines.append("## Usage, cost, and findings")
+        lines.append("")
+        usage_summary = scan.get("usage_collection", {}) or {}
+        cost_summary = scan.get("cost_collection", {}) or {}
+        lines.append(f"- CloudWatch status: **{usage_summary.get('status')}** "
+                     f"({usage_summary.get('measurement_count', len(usage))} measurements)")
+        if usage_summary.get("reason"):
+            lines.append(f"- Usage note: {usage_summary.get('reason')}")
+        lines.append(f"- Cost status: **{cost_summary.get('status')}** "
+                     f"({cost_summary.get('record_count', len(costs))} records)")
+        if cost_summary.get("reason"):
+            lines.append(f"- Cost note: {cost_summary.get('reason')}")
+        if cost_summary.get("mapped_reported_amount") is not None:
+            lines.append(
+                f"- Positive reported mapped cost: **{cost_summary.get('currency')} "
+                f"{cost_summary.get('mapped_reported_amount')}**; unattributed portion: "
+                f"**{cost_summary.get('unattributed_reported_amount')}**"
+            )
+        if cost_summary.get("data_through"):
+            lines.append(f"- Billing data through: **{cost_summary.get('data_through')}**")
+        lines.append(f"- Findings: **{len(findings)}**")
+        lines.append("")
+        if findings:
+            lines.append("| Severity | Finding | Service | Resource |")
+            lines.append("|---|---|---|---|")
+            for finding in findings[:20]:
+                title = str(finding.get("title", "")).replace("|", "\\|")[:90]
+                lines.append(
+                    f"| {finding.get('severity')} | {title} | {finding.get('service') or '—'} "
+                    f"| {finding.get('resource_id') or '—'} |"
+                )
+            if len(findings) > 20:
+                lines.append("")
+                lines.append(f"_... {len(findings) - 20} more in `findings.json`._")
+            lines.append("")
+
     lines.append("## Governance gaps (ISO/IEC 42001-oriented)")
     lines.append("")
     lines.append(f"- Records analyzed: **{gaps.get('records_analyzed')}**")
@@ -377,6 +570,19 @@ def render_markdown_report(
     lines.append(
         "- CloudTrail Event History covers 90 days; invocation data events "
         "must be operator-enabled, so absence of events is not proof of non-use."
+    )
+    lines.append(
+        "- CloudWatch metrics may be disabled, delayed, or available only at "
+        "service level; missing datapoints are reported as such, never as zero."
+    )
+    lines.append(
+        "- Cost Explorer reports billed cost at service/Region level. Amounts "
+        "are not allocated to individual resources unless a resource-level "
+        "billing identifier was present."
+    )
+    lines.append(
+        "- Findings, including idle and low-utilization candidates, are advisory "
+        "and require owner validation before remediation."
     )
     lines.append(
         "- This report supports AI inventory/governance activities relevant to "

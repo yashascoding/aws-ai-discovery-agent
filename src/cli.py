@@ -6,7 +6,6 @@ identity   Verify AWS identity (STS) and print non-secret configuration.
 scan       Read-only discovery + evidence + classification; writes reports.
 validate   Validate reports/inventory.json against the JSON Schema.
 report     Generate reports/report.md from existing artifacts.
-test-fixtures  Run offline (synthetic-fixture) discovery/classification tests.
 test-live  Run explicitly enabled live read-only tests (requires --enable-live-tests;
            cost-incurring checks additionally require --enable-model-invocation).
 
@@ -53,12 +52,26 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="CloudTrail observation window in days (default: %(default)s)")
     p_scan.add_argument("--services", default=None,
                         help="Comma separated adapter names (default: all). "
-                             "Available: bedrock,sagemaker,tags,glue,application")
+                             "Run with --help after importing src.discovery for the current list.")
     p_scan.add_argument("--report-dir", default="reports")
     p_scan.add_argument("--no-merge", action="store_true",
                         help="Do not merge with a previous reports/inventory.json")
     p_scan.add_argument("--skip-activity", action="store_true",
                         help="Skip CloudTrail activity evidence collection")
+    p_scan.add_argument("--skip-usage", action="store_true",
+                        help="Skip CloudWatch usage measurement collection")
+    p_scan.add_argument("--skip-cost", action="store_true",
+                        help="Skip Cost Explorer/CUR cost collection")
+    p_scan.add_argument("--usage-lookback-days", type=int, default=14,
+                        help="CloudWatch usage lookback in days (default: %(default)s)")
+    p_scan.add_argument("--cost-lookback-days", type=int, default=30,
+                        help="Cost Explorer lookback in days (default: %(default)s)")
+    p_scan.add_argument("--cost-region", default="us-east-1",
+                        help="Cost Explorer endpoint Region (default: %(default)s)")
+    p_scan.add_argument("--cur-bucket", default=None,
+                        help="Optional S3 bucket containing a CSV/GZIP Cost and Usage Report")
+    p_scan.add_argument("--cur-prefix", default=None,
+                        help="Optional CUR object prefix")
 
     p_val = sub.add_parser("validate", help="Validate inventory against the schema")
     p_val.add_argument("--report-dir", default="reports")
@@ -66,12 +79,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_rep = sub.add_parser("report", help="Generate a Markdown scan report")
     p_rep.add_argument("--report-dir", default="reports")
-
-    p_fix = sub.add_parser(
-        "test-fixtures",
-        help="Run offline discovery/classification tests with synthetic AWS responses",
-    )
-    p_fix.add_argument("--report-dir", default="reports")
 
     p_live = sub.add_parser(
         "test-live",
@@ -133,7 +140,18 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     services = [s.strip() for s in args.services.split(",")] if args.services else None
     activity_days = 0 if args.skip_activity else args.activity_days
-    config = _config_from_args(args, services=services, activity_days=activity_days)
+    config = _config_from_args(
+        args,
+        services=services,
+        activity_days=activity_days,
+        enable_usage_collection=not args.skip_usage,
+        enable_cost_collection=not args.skip_cost,
+        usage_lookback_days=args.usage_lookback_days,
+        cost_lookback_days=args.cost_lookback_days,
+        cost_region=args.cost_region,
+        cur_bucket=args.cur_bucket,
+        cur_prefix=args.cur_prefix,
+    )
 
     print(f"Scan {config.scan_id}")
     print(f"  regions : {', '.join(config.regions)}")
@@ -146,6 +164,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         build_scan_metadata(result),
         [e.as_dict() for e in result.errors],
         [c.as_dict() for c in result.coverage],
+        capabilities=result.capabilities,
+        findings=[f.as_dict() for f in result.findings],
+        usage_measurements=[m.as_dict() for m in result.usage_measurements],
+        cost_records=[c.as_dict() for c in result.cost_records],
     )
 
     if not args.no_merge:
@@ -170,6 +192,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
           f"Resources: {document['scan']['resources_discovered']}  "
           f"Errors: {document['scan']['error_count']}")
     print(f"Classifications: {json.dumps(document['scan']['classification_counts'])}")
+    usage_meta = document["scan"].get("usage_collection", {})
+    cost_meta = document["scan"].get("cost_collection", {})
+    print(f"Usage collection: {usage_meta.get('status')} "
+          f"({usage_meta.get('measurement_count', 0)} measurements)")
+    print(f"Cost collection: {cost_meta.get('status')} "
+          f"({cost_meta.get('record_count', 0)} records)")
+    print(f"Findings: {document['scan'].get('findings_summary', {}).get('total', 0)}")
     print(f"Schema valid: {'yes' if not validation_errors else 'NO — see schema_validation.json'}")
     for path in paths.values():
         print(f"  wrote {path}")
@@ -231,54 +260,6 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_test_fixtures(args: argparse.Namespace) -> int:
-    from .offline import run_offline_suite
-
-    config = _config_from_args(args)
-    results = run_offline_suite(config)
-    passed = sum(1 for r in results if r.status == "pass")
-    failed = sum(1 for r in results if r.status == "fail")
-    skipped = sum(1 for r in results if r.status == "skipped")
-    payload = {
-        "suite": "offline_fixtures",
-        "generated_at": results[0].timestamp if results else None,
-        "total": len(results),
-        "passed": passed,
-        "failed": failed,
-        "skipped": skipped,
-        "scenarios": [r.as_dict() for r in results],
-    }
-    out = Path(config.report_dir) / "test_results.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    existing: dict[str, Any] = {}
-    if out.exists():
-        try:
-            existing = json.loads(out.read_text())
-        except json.JSONDecodeError:
-            existing = {}
-    existing_offline = payload
-    existing.update({"offline": existing_offline})
-    if "total" not in existing:
-        existing.update({"total": len(results), "passed": passed, "failed": failed, "skipped": skipped})
-    else:
-        # Recompute totals as offline + live blocks.
-        offline = existing.get("offline", {})
-        live = existing.get("live")
-        existing["total"] = offline.get("total", 0) + (live or {}).get("total", 0)
-        existing["passed"] = offline.get("passed", 0) + (live or {}).get("passed", 0)
-        existing["failed"] = offline.get("failed", 0) + (live or {}).get("failed", 0)
-        existing["skipped"] = offline.get("skipped", 0) + (live or {}).get("skipped", 0)
-    out.write_text(json.dumps(existing, indent=2, default=str))
-
-    print(f"\nOffline fixture suite: {passed} passed, {failed} failed, {skipped} skipped "
-          f"(of {len(results)})")
-    for r in results:
-        marker = {"pass": "PASS", "fail": "FAIL", "skipped": "SKIP"}[r.status]
-        print(f"  [{marker}] {r.name}: {r.actual}")
-    print(f"\nWrote {out}")
-    return 0 if failed == 0 else 1
-
-
 def cmd_test_live(args: argparse.Namespace) -> int:
     from .live_tests import run_live_suite
 
@@ -315,11 +296,10 @@ def cmd_test_live(args: argparse.Namespace) -> int:
         "skipped": skipped,
         "scenarios": [r.as_dict() for r in results],
     }
-    offline = payload.get("offline", {})
-    payload["total"] = offline.get("total", 0) + len(results)
-    payload["passed"] = offline.get("passed", 0) + passed
-    payload["failed"] = offline.get("failed", 0) + failed
-    payload["skipped"] = offline.get("skipped", 0) + skipped
+    payload["total"] = len(results)
+    payload["passed"] = passed
+    payload["failed"] = failed
+    payload["skipped"] = skipped
     out.write_text(json.dumps(payload, indent=2, default=str))
 
     print(f"\nLive suite: {passed} passed, {failed} failed, {skipped} skipped")
@@ -335,7 +315,6 @@ COMMANDS = {
     "scan": cmd_scan,
     "validate": cmd_validate,
     "report": cmd_report,
-    "test-fixtures": cmd_test_fixtures,
     "test-live": cmd_test_live,
 }
 
