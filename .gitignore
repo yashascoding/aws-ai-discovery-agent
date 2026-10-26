@@ -4,3 +4,11 @@ __pycache__/
 .env
 .aws/
 reports/
+*.db
+*.sqlite
+*.sqlite3
+node_modules/
+dist/
+webapp/frontend/.vite/
+.pytest_cache/
+.ruff_cache/
