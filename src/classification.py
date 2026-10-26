@@ -40,7 +40,29 @@ AI_NATIVE_RESOURCE_PREFIXES = (
     "bedrock",
     "sagemaker",
     "glue_ml_transform",
+    "rekognition_",
+    "textract_",
+    "comprehend_",
+    "lex_",
+    "polly_",
+    "transcribe_",
+    "translate_",
+    "personalize_",
+    "kendra_",
+    "qbusiness_",
+    "frauddetector_",
+    "forecast_",
+    "lookoutequipment_",
+    "healthimaging_",
 )
+
+# Infrastructure resource types are AI-native only when an adapter has already
+# attached defensible AI-association evidence. They are deliberately not listed
+# as bare service prefixes: an ordinary S3/EC2 resource must stay UNKNOWN.
+AI_ASSOCIATED_RESOURCE_TYPES = frozenset({
+    "ec2_instance", "ecs_service", "ecs_cluster", "eks_cluster", "s3_bucket",
+    "opensearch_domain", "redshift_cluster", "aurora_cluster", "neptune_cluster",
+})
 
 DETECTION_AWS_LISTING = "aws_api_listing"
 DETECTION_ACTIVITY = "cloudtrail_activity"
@@ -241,7 +263,10 @@ def classify_record(
 
     # ---- 2/3/4. Evidence-driven non-activity branches ---------------- #
     is_catalog = record.resource_kind == "catalog"
-    is_ai_native = record.resource_type.startswith(AI_NATIVE_RESOURCE_PREFIXES)
+    is_ai_native = (
+        record.resource_type.startswith(AI_NATIVE_RESOURCE_PREFIXES)
+        or record.resource_type in AI_ASSOCIATED_RESOURCE_TYPES
+    )
 
     if outcome.classification == "CONFIRMED_AI_ACTIVITY":
         if failed and successful:

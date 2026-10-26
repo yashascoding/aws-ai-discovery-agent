@@ -8,6 +8,8 @@ from . import sagemaker as _sagemaker  # noqa: F401
 from . import tagging as _tagging  # noqa: F401
 from . import glue as _glue  # noqa: F401
 from . import application as _application  # noqa: F401
+from . import managed_ai as _managed_ai  # noqa: F401
+from . import infrastructure as _infrastructure  # noqa: F401
 
 __all__ = [
     "ADAPTERS",
