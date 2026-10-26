@@ -37,8 +37,17 @@ ACCESS_DENIED_CODES = {
     "AccessDeniedException",
     "UnauthorizedOperation",
     "ForbiddenException",
-    "UnrecognizedClientException",
+}
+NOT_CONFIGURED_CODES = {
     "OptInRequired",
+    "SubscriptionRequiredException",
+    "SubscriptionRequired",
+    "ServiceNotSubscribed",
+}
+NOT_AVAILABLE_CODES = {
+    "UnrecognizedClientException",
+    "InvalidClientTokenId",
+    "UnknownOperationException",
 }
 
 
@@ -53,7 +62,7 @@ class OperationError:
     service: str
     operation: str
     region: str | None
-    error_type: str  # access_denied | throttled | unsupported | not_found | other
+    error_type: str  # access_denied | not_configured | not_available | throttled | unsupported | not_found | timeout | sdk_error | other
     message: str
     scan_id: str | None = None
     timestamp: str = field(
@@ -77,6 +86,10 @@ def classify_exception(exc: Exception) -> str:
         code = exc.response.get("Error", {}).get("Code", "")
         if code in ACCESS_DENIED_CODES or "AccessDenied" in code:
             return "access_denied"
+        if code in NOT_CONFIGURED_CODES:
+            return "not_configured"
+        if code in NOT_AVAILABLE_CODES:
+            return "not_available"
         if code in RETRYABLE_CODES or "Throttl" in code:
             return "throttled"
         if code in {"ResourceNotFoundException", "NotFoundException"}:
@@ -84,6 +97,8 @@ def classify_exception(exc: Exception) -> str:
         if code in {"ValidationException", "InvalidRequestException"}:
             return "unsupported"
         return "other"
+    if isinstance(exc, EndpointConnectionError):
+        return "not_available"
     if isinstance(exc, (ConnectTimeoutError, ReadTimeoutError, BotoConnectionError)):
         return "timeout"
     if isinstance(exc, BotoCoreError):

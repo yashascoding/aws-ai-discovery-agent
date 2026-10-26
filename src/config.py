@@ -77,6 +77,8 @@ class ScanConfig:
     profile: str | None = field(
         default_factory=lambda: os.environ.get("AWS_PROFILE") or None
     )
+    role_arn: str | None = None
+    external_id: str | None = None
     regions: list[str] = field(default_factory=lambda: [DEFAULT_REGION])
     activity_days: int = DEFAULT_ACTIVITY_DAYS
     report_dir: str = DEFAULT_REPORT_DIR
@@ -91,6 +93,17 @@ class ScanConfig:
     # Optional evidence sources (off by default; never created automatically).
     cloudtrail_trail_name: str | None = None
     cloudtrail_lake_query_id: str | None = None
+    # Usage/cost enrichment. Collections are read-only and opt-out-able.
+    enable_usage_collection: bool = True
+    enable_cost_collection: bool = True
+    usage_lookback_days: int = 14
+    cost_lookback_days: int = 30
+    max_metrics_per_namespace: int = 25
+    max_datapoints_per_metric: int = 60
+    cost_region: str = "us-east-1"
+    enable_resource_level_costs: bool = False
+    cur_bucket: str | None = None
+    cur_prefix: str | None = None
 
     @property
     def observation_start(self) -> datetime:
@@ -101,11 +114,16 @@ class ScanConfig:
     def describe(self) -> dict:
         return {
             "profile": self.profile,
+            "role_arn": self.role_arn,
             "regions": list(self.regions),
             "activity_days": self.activity_days,
             "report_dir": self.report_dir,
             "scan_id": self.scan_id,
             "services": self.services or "all",
             "observation_start": self.observation_start.isoformat(),
+            "usage_collection": self.enable_usage_collection,
+            "cost_collection": self.enable_cost_collection,
+            "usage_lookback_days": self.usage_lookback_days,
+            "cost_lookback_days": self.cost_lookback_days,
             "read_only": True,
         }

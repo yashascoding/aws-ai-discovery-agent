@@ -38,11 +38,25 @@ class IdentityResult:
 
 
 def create_session(config: ScanConfig, region: str | None = None) -> boto3.Session:
-    """Create a Boto3 session from profile/env configuration (no inline secrets)."""
+    """Create the configured source session, optionally assuming a tenant role."""
     kwargs: dict[str, Any] = {"region_name": region or config.regions[0] or DEFAULT_REGION}
     if config.profile:
         kwargs["profile_name"] = config.profile
-    return boto3.Session(**kwargs)
+    source = boto3.Session(**kwargs)
+    if not config.role_arn:
+        return source
+    assumed = source.client("sts", region_name=kwargs["region_name"]).assume_role(
+        RoleArn=config.role_arn,
+        RoleSessionName="ai-registry-discovery",
+        ExternalId=config.external_id,
+        DurationSeconds=3600,
+    )["Credentials"]
+    return boto3.Session(
+        aws_access_key_id=assumed["AccessKeyId"],
+        aws_secret_access_key=assumed["SecretAccessKey"],
+        aws_session_token=assumed["SessionToken"],
+        region_name=kwargs["region_name"],
+    )
 
 
 def get_identity(config: ScanConfig, session: boto3.Session | None = None) -> IdentityResult:
