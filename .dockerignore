@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+node_modules
+**/node_modules
+webapp/frontend/dist
+webapp/backend/data
+webapp/backend/.env
+reports
+docs

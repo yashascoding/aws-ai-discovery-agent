@@ -1,0 +1,18 @@
+services:
+  ai-registry:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-registry
+    ports:
+      - "5173:5173"
+      - "8000:8000"
+    volumes:
+      - ./webapp/backend/data:/app/webapp/backend/data
+      - ~/.aws:/home/app/.aws
+      - ./webapp/backend/.env:/app/webapp/backend/.env:ro
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-truvan-poc}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+      - DATABASE_URL=sqlite:////app/webapp/backend/data/registry.db
+    restart: unless-stopped
