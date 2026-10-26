@@ -25,7 +25,9 @@ Blind spots
   endpoint* is not available from these APIs — runtime invocation evidence
   comes from CloudTrail (separate evidence adapter).
 - Experiment versions and lineage entities are only summarised.
-- SageMaker projects/spaces (Studio) are not enumerated in this POC.
+- Studio domains, user profiles, apps, spaces, projects, A2I flow
+  definitions, human task UIs, and human loops are enumerated when present.
+- Human-loop listing is per flow definition and bounded.
 """
 from __future__ import annotations
 
@@ -61,6 +63,14 @@ class SageMakerAdapter(BaseAdapter):
             ("sagemaker", "ListModelPackages"),
             ("sagemaker", "ListInferenceComponents"),
             ("sagemaker", "ListExperiments"),
+            ("sagemaker", "ListDomains"),
+            ("sagemaker", "ListUserProfiles"),
+            ("sagemaker", "ListApps"),
+            ("sagemaker", "ListSpaces"),
+            ("sagemaker", "ListProjects"),
+            ("sagemaker", "ListFlowDefinitions"),
+            ("sagemaker", "ListHumanTaskUis"),
+            ("sagemaker-a2i-runtime", "ListHumanLoops"),
         ]
 
     def required_permissions(self) -> list[str]:
@@ -74,7 +84,15 @@ class SageMakerAdapter(BaseAdapter):
             "sagemaker:ListModelPackages",
             "sagemaker:ListInferenceComponents",
             "sagemaker:ListExperiments",
+            "sagemaker:ListDomains",
+            "sagemaker:ListUserProfiles",
+            "sagemaker:ListApps",
+            "sagemaker:ListSpaces",
+            "sagemaker:ListProjects",
+            "sagemaker:ListFlowDefinitions",
+            "sagemaker:ListHumanTaskUis",
             "sagemaker:ListTags",
+            "sagemaker:ListHumanLoops",
         ]
 
     def documented_blind_spots(self) -> list[str]:
@@ -83,8 +101,9 @@ class SageMakerAdapter(BaseAdapter):
             "last-used evidence requires CloudTrail data events (often disabled).",
             "Deleted models/endpoints outside the CloudTrail retention window "
             "are invisible.",
-            "SageMaker Studio spaces, projects, and feature groups are out of "
-            "scope for this POC.",
+            "SageMaker feature groups and lineage entities are not enumerated.",
+            "Human-loop listing requires a flow definition ARN and is bounded; "
+            "loops without a discoverable flow definition are invisible.",
             "Pipeline executions are discovered per pipeline; very large "
             "execution histories are summarised rather than fully enumerated.",
         ]
@@ -162,8 +181,62 @@ class SageMakerAdapter(BaseAdapter):
             created_key="CreationTime", modified_key="LastModifiedTime",
         )
 
+        self._list(
+            client, region, result,
+            operation="list_domains", result_key="Domains",
+            resource_type="sagemaker_studio_domain", id_key="DomainId",
+            arn_key="DomainArn", name_key="DomainName", status_key="Status",
+            created_key="CreationTime", modified_key="LastModifiedTime",
+        )
+        self._list(
+            client, region, result,
+            operation="list_user_profiles", result_key="UserProfiles",
+            resource_type="sagemaker_studio_user_profile", id_key="UserProfileName",
+            arn_key="UserProfileArn", name_key="UserProfileName", status_key="Status",
+            created_key="CreationTime", modified_key="LastModifiedTime",
+            metadata_builder=lambda i: {"sagemaker_studio_domain_id": i.get("DomainId")},
+        )
+        self._list(
+            client, region, result,
+            operation="list_apps", result_key="Apps",
+            resource_type="sagemaker_studio_app", id_key="AppName",
+            arn_key="AppArn", name_key="AppName", status_key="Status",
+            created_key="CreationTime",
+            metadata_builder=lambda i: {"app_type": i.get("AppType"), "domain_id": i.get("DomainId")},
+        )
+        self._list(
+            client, region, result,
+            operation="list_spaces", result_key="Spaces",
+            resource_type="sagemaker_studio_space", id_key="SpaceName",
+            arn_key="SpaceArn", name_key="SpaceName", status_key="Status",
+            created_key="CreationTime", modified_key="LastModifiedTime",
+            metadata_builder=lambda i: {"domain_id": i.get("DomainId")},
+        )
+        self._list(
+            client, region, result,
+            operation="list_projects", result_key="ProjectSummaryList",
+            resource_type="sagemaker_project", id_key="ProjectName",
+            arn_key="ProjectArn", name_key="ProjectName", status_key="ProjectStatus",
+            created_key="CreationTime",
+        )
+        self._list(
+            client, region, result,
+            operation="list_flow_definitions", result_key="FlowDefinitionSummaries",
+            resource_type="sagemaker_a2i_flow_definition", id_key="FlowDefinitionName",
+            arn_key="FlowDefinitionArn", name_key="FlowDefinitionName",
+            status_key="FlowDefinitionStatus", created_key="CreationTime",
+        )
+        self._list(
+            client, region, result,
+            operation="list_human_task_uis", result_key="HumanTaskUiSummaries",
+            resource_type="sagemaker_a2i_human_task_ui", id_key="HumanTaskUiName",
+            arn_key="HumanTaskUiArn", name_key="HumanTaskUiName",
+            created_key="CreationTime",
+        )
+
         # Best-effort enrichment: pipeline executions per pipeline (bounded).
         self._pipeline_executions(client, region, result)
+        self._human_loops(session, region, result)
         return result
 
     # ------------------------------------------------------------------ #
@@ -197,6 +270,44 @@ class SageMakerAdapter(BaseAdapter):
                     pipeline.metadata["execution_count_observed"] = len(executions)
             except (ClientError, BotoCoreError) as exc:
                 self._record_error(result, region, operation, exc)
+
+    def _human_loops(self, session, region: str, result: AdapterResult) -> None:
+        """List A2I human loops per flow definition (bounded, read-only)."""
+        flows = [r for r in result.resources if r.resource_type == "sagemaker_a2i_flow_definition"]
+        if not flows:
+            return
+        try:
+            a2i = session.client("sagemaker-a2i-runtime", region_name=region)
+        except BotoCoreError as exc:
+            self._record_error(result, region, "ListHumanLoops", exc)
+            return
+        for flow in flows:
+            if not flow.arn:
+                continue
+            operation = "list_human_loops"
+            result.operations_attempted.append(f"sagemaker-a2i-runtime.{operation}")
+            try:
+                loops = collect_pages(
+                    a2i, operation, "HumanLoopSummaries",
+                    {"FlowDefinitionArn": flow.arn}, max_pages=5,
+                )
+                result.operations_succeeded.append(f"sagemaker-a2i-runtime.{operation}")
+            except (ClientError, BotoCoreError) as exc:
+                self._record_error(result, region, "ListHumanLoops", exc)
+                continue
+            for loop in loops:
+                result.resources.append(DiscoveredResource(
+                    service="sagemaker",
+                    resource_type="sagemaker_a2i_human_loop",
+                    resource_id=loop.get("HumanLoopArn") or loop.get("HumanLoopName"),
+                    region=region,
+                    arn=loop.get("HumanLoopArn"),
+                    name=loop.get("HumanLoopName"),
+                    status=loop.get("HumanLoopStatus"),
+                    created_time=_iso(loop.get("CreationTime")),
+                    metadata={"flow_definition_arn": flow.arn},
+                    source_operation="sagemaker-a2i-runtime.ListHumanLoops",
+                ))
 
     def _record_error(self, result: AdapterResult, region: str, operation: str, exc: Exception) -> None:
         result.errors.append(
