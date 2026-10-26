@@ -15,42 +15,55 @@ compliance and never claims usage it cannot evidence.
 
 ```mermaid
 flowchart TD
-    CLI["CLI (src/cli.py)<br/>identity · scan · validate · report<br/>test-fixtures · test-live"]
+    CLI["CLI (src/cli.py)<br/>identity · scan · validate · report · test-live"]
 
     subgraph Scan["Read-only scan (src/scanner.py)"]
         ID["aws_identity.py<br/>STS GetCallerIdentity"]
         REG["region_discovery.py<br/>ec2 DescribeRegions"]
-        subgraph Discovery["Discovery adapters"]
+        subgraph Discovery["Discovery adapters (27)"]
             BR["bedrock.py"]
             SM["sagemaker.py"]
+            MA["managed_ai.py"]
+            INF["infrastructure.py"]
             TAG["tagging.py"]
             GL["glue.py"]
             APP["application.py<br/>(Lambda)"]
         end
         CT["evidence/cloudtrail.py<br/>LookupEvents (windowed, sanitised)"]
+        INS["insights.py<br/>capabilities · usage · cost · findings"]
+        UW["usage.py<br/>CloudWatch ListMetrics/GetMetricData"]
+        CO["costs.py<br/>Cost Explorer + optional CUR"]
     end
 
     subgraph Analysis
         CLS["classification.py<br/>5 categories + reasons"]
         REGR["registry.py<br/>stable IDs · provenance · merge"]
         GOV["governance.py<br/>ISO 42001-oriented gap map"]
+        FND["findings.py<br/>governance/waste/cost findings"]
     end
 
-    OUT["reporting.py<br/>inventory.json/csv · summary.json<br/>scan_errors.json · governance_gaps.json<br/>evidence/cloudtrail-events.json · report.md"]
+    OUT["reporting.py<br/>inventory · summary · errors · gaps<br/>usage · costs · findings · coverage · report.md"]
 
     CLI --> Scan
     ID --> REG
     REG --> Discovery
     BR --> CLS
     SM --> CLS
+    MA --> CLS
+    INF --> CLS
     TAG --> CLS
     GL --> CLS
     APP --> CLS
     CT --> CLS
     CLS --> REGR
+    REGR --> INS
+    INS --> UW
+    INS --> CO
+    INS --> FND
     REGR --> GOV
     REGR --> OUT
     GOV --> OUT
+    INS --> OUT
     CT --> OUT
 ```
 
@@ -68,15 +81,20 @@ flowchart TD
 | `src/discovery/bedrock.py` | Bedrock + bedrock-agent listings; separates catalogue from account resources. |
 | `src/discovery/sagemaker.py` | SageMaker models/endpoints/configs/jobs/pipelines/packages/components/experiments. |
 | `src/discovery/tagging.py` | Resource Groups Tagging API discovery for `AI-System`-tagged non-AI-native resources. |
+| `src/discovery/managed_ai.py` | Rekognition, Textract, Comprehend, Lex V2, Polly, Transcribe, Translate, Personalize, Kendra, Q Business, Fraud Detector, Forecast, Lookout for Equipment, HealthImaging listings. |
+| `src/discovery/infrastructure.py` | Evidence-based EC2/ECS/EKS/S3/OpenSearch/Redshift/Aurora/Neptune association discovery. |
 | `src/discovery/glue.py` | Glue ML transforms (`ListMLTransforms` + bounded `GetMLTransform`). |
 | `src/discovery/application.py` | Lambda functions with static AI-association indicators. |
+| `src/capabilities.py` | 55-service capability registry: discovery, usage, billing scope, limitations, runtime status. |
+| `src/usage.py` | Bounded CloudWatch `ListMetrics`/`GetMetricData`; resource-dimension matching; honest `no_datapoints`/`partial`. |
+| `src/costs.py` | Daily Cost Explorer service/Region cost, optional CUR CSV/GZIP, no unsupported allocation. |
+| `src/findings.py` | Governance, telemetry, attribution, idle-runtime, low-utilization, and cost-change findings. |
+| `src/insights.py` | Orchestrates capability status, usage, cost, attachment, and findings after discovery. |
 | `src/evidence/cloudtrail.py` | Windowed `LookupEvents`, dedupe, metadata-only sanitisation, invocation vs management split. |
 | `src/classification.py` | The 5-category model, event↔record matching, staleness policy. |
 | `src/registry.py` | `RegistryRecord`, stable record IDs, provenance, merge semantics, missing-field computation. |
 | `src/governance.py` | Maps registry fields to ISO/IEC 42001-oriented documented-information expectations and reports gaps. |
 | `src/reporting.py` | Writes all artifacts, CSV/JSON serialisation, schema validation, Markdown report. |
-| `src/testkit.py` | `FakeClient`/`FakeSession` fixtures for fully offline testing. |
-| `src/offline.py` | Offline scenario suite A–J (`test-fixtures`). |
 | `src/live_tests.py` | Live test cases (`test-live`), with explicit skip gates for cost/mutation. |
 
 ## Adapter contract
@@ -129,6 +147,26 @@ Records are classified into one of five categories (strongest first):
 
 Usage status is more granular: `confirmed`, `configured_but_unverified`,
 `potential`, `inactive`, `unknown`.
+
+## Usage, cost, coverage, and findings
+
+After discovery, `insights.enrich_scan` runs without mutating AWS:
+
+1. Build the 55-service capability registry and mark each adapter outcome
+   (`supported`, `partial`, `not_configured`, `permission_denied`, `unsupported`,
+   `collection_failed`).
+2. Query CloudWatch per scanned Region with bounded namespaces/metrics/datapoints.
+   Resource-scoped measurements require a matching dimension; everything else is
+   service-scoped. No datapoints is not zero usage.
+3. Query Cost Explorer daily `UnblendedCost` grouped by `SERVICE` and `REGION`
+   for AI-capable services. Optional CUR rows are merged when configured. Cost is
+   never allocated without a billing identifier.
+4. Finalize capability counts/status and attach measurements/costs to records.
+5. Generate advisory findings with evidence references and limitations.
+6. Preserve inventory results even if enrichment fails; the failure is recorded.
+
+Capability statuses are runtime facts, not marketing claims: a service can be
+discoverable but have unavailable telemetry, or billable but not opted in.
 
 ### Evidence hierarchy (what justifies what)
 
@@ -202,28 +240,20 @@ A scan writes to `--report-dir` (default `reports/`, git-ignored):
 | `summary.json` | Scan metadata, counts, coverage. |
 | `scan_errors.json` | Denied/unsupported/throttled operations. |
 | `governance_gaps.json` | Per-record missing governance fields + follow-ups. |
+| `usage_measurements.json/csv` | Bounded CloudWatch measurements with collection status. |
+| `costs.json/csv` | Reported Cost Explorer/CUR records with attribution confidence. |
+| `findings.json/csv` | Evidence-bound governance, telemetry, waste, and cost findings. |
+| `coverage_report.json/csv` | Per-service discovery/usage/billing status and limitations. |
 | `evidence/cloudtrail-events.json` | Sanitised activity evidence (metadata only). |
 | `report.md` | Human-readable scan report. |
-| `test_results.json` | Offline/live test outcomes. |
+| `test_results.json` | Live test outcomes. |
 
 ## Testing strategy
 
-```mermaid
-flowchart LR
-    subgraph Offline["Offline (no AWS)"]
-        FIX["examples/fixtures/*.json<br/>synthetic AWS responses"]
-        TK["testkit.FakeSession"]
-        UNIT["tests/ (pytest)"]
-        SCEN["offline.py scenarios A–J"]
-        FIX --> TK --> UNIT
-        FIX --> TK --> SCEN
-    end
-    subgraph Live["Live (read-only)"]
-        LIVE["live_tests.py<br/>LIVE-IDENT/A/D/F/G/I"]
-        SKIP["B/C/E skipped<br/>cost · mutation"]
-    end
-```
+Unit tests use synthetic boto3 clients under `tests/` only; they are not used
+by the application, CLI, or reports. The application always reads from live AWS
+APIs. Live verification is opt-in:
 
-Offline fixtures use resolved markers:
-`{"__offset_days__": -50}` (relative timestamps) and `{"__json_string__": …}`
-(CloudTrail's JSON-in-a-string `CloudTrailEvent`).
+```bash
+python -m src.cli --profile <profile> test-live --enable-live-tests
+```

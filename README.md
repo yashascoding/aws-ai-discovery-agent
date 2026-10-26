@@ -29,20 +29,30 @@ permissions are surfaced, not hidden.
   losing historically-evidenced activity.
 - **ISO 42001-oriented gap mapping** — per-record missing documented-information
   fields with clause references.
+- **Broader AI coverage** — Bedrock/SageMaker plus Rekognition, Textract,
+  Comprehend, Lex, Polly, Transcribe, Translate, Personalize, Kendra, Q
+  Business, Fraud Detector, Forecast, Lookout for Equipment, HealthImaging, and
+  evidence-backed EC2/ECS/EKS/S3/OpenSearch/Redshift/Aurora/Neptune resources.
+- **Usage evidence** — bounded CloudWatch metric and datapoint collection with
+  explicit `no_datapoints`, `partial`, and permission-denied states. Missing
+  telemetry is never reported as zero usage.
+- **Reported cost** — daily Cost Explorer service/Region cost for AI-capable
+  services, optional CUR ingestion, and no allocation to a resource without a
+  billing identifier.
+- **Findings and coverage** — governance gaps, telemetry gaps, unattributed
+  cost, idle paid runtimes, low-utilization accelerated compute, and a 55-service
+  capability/coverage report.
 - **Read-only by construction** — no create/modify/tag/delete code paths; the
   only mutating-capable action (model invocation) is gated behind a cost flag.
-- **Fully testable offline** — 8 fixture scenarios + 49 unit tests with no AWS
-  account, plus an opt-in live read-only suite.
+- **Live read-only verification** — an opt-in live test suite runs against
+  your real account without creating or changing resources.
 
 ## Quick start
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# No AWS needed:
-python -m src.cli test-fixtures      # offline scenario suite (8)
-python -m pytest tests/ -q           # unit tests (49)
+python -m pytest tests/ -q
 
 # Read-only against your account:
 python -m src.cli --profile <name> identity
@@ -56,10 +66,9 @@ python -m src.cli report   --report-dir reports
 | Command | Purpose |
 |---|---|
 | `identity` | Verify AWS identity via STS `GetCallerIdentity`. |
-| `scan` | Read-only AI resource discovery (`--regions`, `--activity-days`, `--services`, `--no-merge`, `--skip-activity`). |
+| `scan` | Read-only AI resource, usage, cost, and coverage scan (`--regions`, `--activity-days`, `--services`, `--no-merge`, `--skip-activity`, `--skip-usage`, `--skip-cost`, lookback flags, optional `--cur-bucket`/`--cur-prefix`). |
 | `validate` | Validate `inventory.json` against the JSON schema. |
 | `report` | Generate the Markdown report from an existing inventory. |
-| `test-fixtures` | Deterministic offline scenario suite (no AWS). |
 | `test-live` | Opt-in live read-only tests (`--enable-live-tests`; model invocation further gated). |
 
 ## What it discovers
@@ -67,10 +76,15 @@ python -m src.cli report   --report-dir reports
 | Adapter | Services / operations |
 |---|---|
 | `bedrock` | Foundation-model catalogue, inference profiles, provisioned throughputs, custom models, guardrails, agents, agent aliases, knowledge bases, prompts, flows |
-| `sagemaker` | Models, endpoints, endpoint configs, training/processing jobs, pipelines, model packages, inference components, experiments |
+| `sagemaker` | Models, endpoints, endpoint configs, training/processing jobs, pipelines, model packages, inference components, experiments, Studio domains/user profiles/apps/spaces, projects, A2I flow definitions/human task UIs/human loops |
+| `managed_ai` | Rekognition, Textract, Comprehend, Lex V2, Polly, Transcribe, Translate, Personalize, Kendra, Q Business, Fraud Detector, Forecast, Lookout for Equipment, HealthImaging |
+| `infrastructure` | EC2, ECS, EKS, S3, OpenSearch, Redshift, Aurora, Neptune — only with accelerated-compute, AI name/tag, AI image, or AI-association evidence |
 | `glue` | ML transforms (list ids + bounded detail) |
 | `application` | Lambda functions with static AI-association indicators |
 | `tags` | `AI-System`-tagged non-AI-native resources (via Resource Groups Tagging API) |
+| `usage` | CloudWatch `ListMetrics` + `GetMetricData` (bounded, metadata/datapoints only) |
+| `costs` | Cost Explorer daily usage cost + optional CUR CSV/GZIP |
+| `findings` | Governance, telemetry, attribution, and cost-review findings |
 | `evidence` | CloudTrail `LookupEvents` (windowed, sanitised) |
 
 ## Output artifacts
@@ -78,17 +92,17 @@ python -m src.cli report   --report-dir reports
 Written to `--report-dir` (default `reports/`, git-ignored):
 
 `inventory.json` · `inventory.csv` · `summary.json` · `scan_errors.json` ·
-`governance_gaps.json` · `evidence/cloudtrail-events.json` · `report.md` ·
-`test_results.json`
+`governance_gaps.json` · `usage_measurements.json/csv` · `costs.json/csv` ·
+`findings.json/csv` · `coverage_report.json/csv` ·
+`evidence/cloudtrail-events.json` · `report.md` ·
+`test_results.json` (live tests only)
 
 ## Documentation
 
 - [`docs/architecture.md`](docs/architecture.md) — data flow, module map, classification model, safety.
 - [`docs/iso42001.md`](docs/iso42001.md) — field → AIMS documented-information mapping.
 - [`docs/iam.md`](docs/iam.md) — least-privilege policy and required actions.
-- [`docs/limitations.md`](docs/limitations.md) — what a read-only scan cannot prove.
-- [`docs/test-evidence.md`](docs/test-evidence.md) — offline + live test matrix.
-- [`docs/demo.md`](docs/demo.md) — 5-minute walkthrough.
+- [`docs/limitations.md`](docs/limitations.md) — what a read-only scan cannot prove, including usage/cost attribution limits.
 - [`examples/iam/ai-discovery-readonly-policy.json`](examples/iam/ai-discovery-readonly-policy.json) — ready-to-use read-only policy.
 
 ## Safety
@@ -99,7 +113,7 @@ Written to `--report-dir` (default `reports/`, git-ignored):
 - Lambda AI association records matching environment-variable **names**, never
   values.
 - Live tests that would require writes (create endpoint/resource, mutate tag) are
-  documented and skipped; their logic is validated offline.
+  documented and skipped; the tool never creates or mutates AWS resources.
 
 ## Requirements
 
